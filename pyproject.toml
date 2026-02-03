@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repokit-dmp"
+version = "0.1"
+dependencies = [
+  "requests",
+  "PyYAML",
+  "nbformat",
+  "jsonschema",
+  "dirhash",
+  "streamlit",
+  "repokit-common",
+]
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff>=0.6",
+  "uv",
+]
+[project.scripts]
+set-dataset = "repokit_dmp.dataset:main"
+dcas-migration = "repokit_dmp.dcas:main"
+dmp-update = "repokit_dmp.dmp:main"
+dmp-editor = "repokit_dmp.editor:cli"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
