@@ -33,5 +33,5 @@ line-length = 100
 target-version = "py312"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 
