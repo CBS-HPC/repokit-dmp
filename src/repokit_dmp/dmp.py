@@ -6,7 +6,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from repokit_common import PROJECT_ROOT, read_toml, write_toml, split_multi, toml_dataset_path, JSON_FILENAME, TOML_PATH, TOOL_NAME
+from repokit_common import (
+    PROJECT_ROOT,
+    read_toml,
+    write_toml,
+    split_multi,
+    toml_dataset_path,
+    JSON_FILENAME,
+    TOML_PATH,
+    TOOL_NAME,
+)
 from . import ensure_project_root
 
 
@@ -69,9 +78,11 @@ SCHEMA_URLS: dict[str, str] = {
 }
 
 DEFAULT_DMP_PATH = Path("./dmp.json")
+REPOKIT_INFO_KEY = "repokit_info"
+LEGACY_REPOKIT_INFO_KEYS: tuple[str, ...] = ("x_dcas",)
 
 
-DEFAULT_DATASET_PATH, _= toml_dataset_path()
+DEFAULT_DATASET_PATH, _ = toml_dataset_path()
 
 
 def schema_version_from_url(url: str, default: str = "1.2") -> str:
@@ -253,7 +264,7 @@ DK_UNI_MAP = {
 def dmp_default_templates(now_dt: str | None = None, today: str | None = None) -> dict:
     """
     Single source of truth for default values.
-    Returns dict with keys: root, project, dataset, distribution, x_dcas.
+    Returns dict with keys: root, project, dataset, distribution, repokit_info.
     All optional strings default to "", booleans are true bools,
     and date/time fields match the schema's formats.
     """
@@ -262,10 +273,10 @@ def dmp_default_templates(now_dt: str | None = None, today: str | None = None) -
 
     cookie = (
         read_toml(
-            folder = str(PROJECT_ROOT),
-            json_filename = JSON_FILENAME,
-            tool_name = TOOL_NAME,
-            toml_path= TOML_PATH,
+            folder=str(PROJECT_ROOT),
+            json_filename=JSON_FILENAME,
+            tool_name=TOOL_NAME,
+            toml_path=TOML_PATH,
         )
         or {}
     )
@@ -376,7 +387,7 @@ def dmp_default_templates(now_dt: str | None = None, today: str | None = None) -
                 }
             ],
         },
-        "x_dcas": {  # extension payload (not part of RDA schema; free-form)
+        "repokit_info": {  # extension payload (not part of RDA schema; free-form)
             "data_type": "Uncategorised",
             "destination": "",
             "number_of_files": 0,
@@ -499,10 +510,10 @@ def _apply_cookiecutter_meta(
     """
     cookie = (
         read_toml(
-            folder = str(project_root),
-            json_filename = JSON_FILENAME,
-            tool_name = TOOL_NAME,
-            toml_path = TOML_PATH,
+            folder=str(project_root),
+            json_filename=JSON_FILENAME,
+            tool_name=TOOL_NAME,
+            toml_path=TOML_PATH,
         )
         or {}
     )
@@ -663,7 +674,6 @@ def update_cookiecutter_from_dmp(
     Returns the path to the updated cookiecutter file, or None on failure.
     """
 
-   
     dmp_data = load_json(dmp_path)
     if not dmp_data:
         print(f"No DMP found at {dmp_path}; nothing to update.")
@@ -675,11 +685,11 @@ def update_cookiecutter_from_dmp(
         return None
 
     cookie = read_toml(
-            folder = str(PROJECT_ROOT),
-            json_filename = JSON_FILENAME,
-            tool_name = TOOL_NAME,
-            toml_path = TOML_PATH,
-        )    
+        folder=str(PROJECT_ROOT),
+        json_filename=JSON_FILENAME,
+        tool_name=TOOL_NAME,
+        toml_path=TOML_PATH,
+    )
 
     # Apply updates
     for key, value in new_fields.items():
@@ -688,12 +698,12 @@ def update_cookiecutter_from_dmp(
 
     # Write back
     write_toml(
-            data = cookie,
-            folder = str(PROJECT_ROOT),
-            json_filename = JSON_FILENAME,
-            tool_name = TOOL_NAME,
-            toml_path = TOML_PATH,
-        )
+        data=cookie,
+        folder=str(PROJECT_ROOT),
+        json_filename=JSON_FILENAME,
+        tool_name=TOOL_NAME,
+        toml_path=TOML_PATH,
+    )
 
 
 def now_iso_minute() -> str:
@@ -829,8 +839,8 @@ def data_type_from_path(p: str) -> str:
     - If cfg["sub_dir"] is False:
         always return "Uncategorised".
     """
-    cfg, _= toml_dataset_path()
-  
+    cfg, _ = toml_dataset_path()
+
     parent = Path(cfg["parent_path"])
     use_subdirs = bool(cfg.get("sub_dir", False))
 
@@ -895,6 +905,43 @@ def set_extension_payload(obj: dict[str, Any], key: str, payload: dict[str, Any]
 # ──────────────────────────────────────────────────────────────────────────────
 # CENTRALIZED DEFAULTS
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+def _drop_extension_keys(obj: dict[str, Any], keys: tuple[str, ...]) -> None:
+    exts = obj.get("extension")
+    if isinstance(exts, dict):
+        for k in keys:
+            exts.pop(k, None)
+        return
+    if not isinstance(exts, list):
+        return
+
+    obj["extension"] = [
+        ext
+        for ext in exts
+        if not (
+            isinstance(ext, dict)
+            and any(k in ext or ext.get("name") == k or ext.get("extension") == k for k in keys)
+        )
+    ]
+
+
+def get_repokit_info_payload(obj: dict[str, Any]) -> dict[str, Any] | None:
+    payload = get_extension_payload(obj, REPOKIT_INFO_KEY)
+    if payload is not None:
+        return payload
+
+    for key in LEGACY_REPOKIT_INFO_KEYS:
+        payload = get_extension_payload(obj, key)
+        if payload is not None:
+            return payload
+
+    return None
+
+
+def set_repokit_info_payload(obj: dict[str, Any], payload: dict[str, Any]) -> None:
+    _drop_extension_keys(obj, (REPOKIT_INFO_KEY, *LEGACY_REPOKIT_INFO_KEYS))
+    set_extension_payload(obj, REPOKIT_INFO_KEY, payload)
 
 
 def today_iso() -> str:
@@ -1168,7 +1215,7 @@ def ensure_dmp_shape(data: dict[str, Any], **_: Any) -> dict[str, Any]:
     Ensure a well-formed RDA-DMP container.
     Uses centralized defaults and preserves existing values where present.
     Also migrates legacy:
-      - dataset["x_dcas"]  -> dataset["extension"] [{"x_dcas": {...}}]
+      - dataset["repokit_info"]  -> dataset["extension"] [{"repokit_info": {...}}]
     """
     templates = dmp_default_templates()
 
@@ -1182,10 +1229,13 @@ def ensure_dmp_shape(data: dict[str, Any], **_: Any) -> dict[str, Any]:
         if not isinstance(dmp.get("project"), list):
             dmp["project"] = []
 
-        # migrate legacy dataset.x_dcas
+        # migrate legacy dataset.repokit_info
         for ds in dmp.get("dataset", []):
             if isinstance(ds.get("x_dcas"), dict):
-                set_extension_payload(ds, "x_dcas", ds.pop("x_dcas"))
+                set_repokit_info_payload(ds, ds.pop("x_dcas"))
+            legacy = get_extension_payload(ds, "x_dcas")
+            if isinstance(legacy, dict):
+                set_repokit_info_payload(ds, legacy)
 
         return {"dmp": dmp}
 
@@ -1235,7 +1285,7 @@ def normalize_root_in_place(data: dict[str, Any], schema: dict[str, Any] | None)
 def normalize_datasets_in_place(data: dict[str, Any], schema: dict[str, Any] | None) -> None:
     """
     Ensure presence of expected RDA-DMP fields on each dataset & distribution.
-    Also ensures dataset-level custom fields are under dataset.extension.x_dcas.
+    Also ensures dataset-level custom fields are under dataset.extension.repokit_info.
     """
     templates = dmp_default_templates()
     dmp = data.setdefault("dmp", {})
@@ -1256,7 +1306,12 @@ def normalize_datasets_in_place(data: dict[str, Any], schema: dict[str, Any] | N
     for ds in datasets:
         # legacy migration
         if isinstance(ds.get("x_dcas"), dict):
-            set_extension_payload(ds, "x_dcas", ds.pop("x_dcas"))
+            set_repokit_info_payload(ds, ds.pop("x_dcas"))
+        if isinstance(ds.get("repokit_info"), dict):
+            set_repokit_info_payload(ds, ds.pop("repokit_info"))
+        legacy = get_extension_payload(ds, "x_dcas")
+        if isinstance(legacy, dict):
+            set_repokit_info_payload(ds, legacy)
 
         # dataset defaults (central)
         apply_defaults_in_place(ds, templates["dataset"])
@@ -1281,13 +1336,13 @@ def normalize_datasets_in_place(data: dict[str, Any], schema: dict[str, Any] | N
                     dist, schema, dist_schema, path="dmp.dataset[].distribution[]"
                 )
 
-        # x_dcas payload
-        x = get_extension_payload(ds, "x_dcas") or {}
-        apply_defaults_in_place(x, templates["x_dcas"])
+        # repokit_info payload
+        x = get_repokit_info_payload(ds) or {}
+        apply_defaults_in_place(x, templates["repokit_info"])
         if not x.get("data_type"):
             hint = (ds.get("distribution") or [{}])[0].get("access_url") or ""
             x["data_type"] = data_type_from_path(hint)
-        set_extension_payload(ds, "x_dcas", x)
+        set_repokit_info_payload(ds, x)
 
 
 def _ensure_object_fields_from_schema(
@@ -1412,7 +1467,7 @@ def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
     - If DMP doesn't exist: create a fresh DMP scaffold.
     - If it exists: load it, normalize root & project & datasets (preserving values).
     - Always set dmp["schema"] to the GitHub 'tree' URL for 1.X.
-    - Wrap root custom fieldsand dataset custom fields (x_dcas)
+    - Wrap root custom fieldsand dataset custom fields (repokit_info)
       under their respective 'extension' arrays.
     - Pull metadata from cookiecutter (title, description, contact, project).
     - Ensure the top-level 'dmp' object is saved in the exact key order you specified.
@@ -1470,3 +1525,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+

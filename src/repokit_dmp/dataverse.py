@@ -50,7 +50,7 @@ from .publish import (
     append_packaging_note,
     description_from_madmp,
     estimate_zip_total_bytes,
-    files_from_x_dcas,
+    files_from_repokit_info,
     realize_packaging_plan_parallel,
     sizes_bytes,
 )
@@ -133,6 +133,7 @@ def _dv_publish_dataset(
 # ============================================================================
 # Parallel upload helpers (Session + ThreadPool)
 # ============================================================================
+
 
 def _dv_session(token: str) -> requests.Session:
     s = requests.Session()
@@ -781,6 +782,7 @@ def paths_existing_for_packaging(paths: list[str]) -> list[str]:
             continue
     return out
 
+
 # ============================================================================
 # Publish flow
 # ============================================================================
@@ -812,17 +814,17 @@ def _dv_worker_upload_then_publish(
         # Privacy gate
         sensitive = _has_personal_or_sensitive(ds)
 
-        # Files from x_dcas (keep files AND dirs for packaging)
-        xdcas_files = files_from_x_dcas(ds)
+        # Files from repokit_info (keep files AND dirs for packaging)
+        repokit_info_files = files_from_repokit_info(ds)
 
         # Resolve relative paths against DMP location
         dmp_dir = str(Path(dmp_path).resolve().parent)
         resolved: list[str] = []
-        for p in xdcas_files:
+        for p in repokit_info_files:
             resolved.append(p if os.path.isabs(p) else os.path.normpath(os.path.join(dmp_dir, p)))
-        xdcas_files = resolved
+        repokit_info_files = resolved
 
-        uploads_raw = [] if sensitive else paths_existing_for_packaging(xdcas_files)
+        uploads_raw = [] if sensitive else paths_existing_for_packaging(repokit_info_files)
         pre_count = len(uploads_raw)
         if sensitive or pre_count == 0:
             return  # metadata-only (by design)
@@ -842,11 +844,16 @@ def _dv_worker_upload_then_publish(
         final_paths: list[str] = []
         if dvplan.double_zipped:
             for fp in inner_paths:
-                if fp.lower().endswith(".zip") and os.path.getsize(fp) <= DATAVERSE_MAX_FILE_SIZE_BYTES:
+                if (
+                    fp.lower().endswith(".zip")
+                    and os.path.getsize(fp) <= DATAVERSE_MAX_FILE_SIZE_BYTES
+                ):
                     outer = os.path.join(
                         os.path.dirname(fp), os.path.basename(fp).replace(".zip", "_outer.zip")
                     )
-                    with zipfile.ZipFile(outer, "w", compression=ZIP_COMPRESSION, allowZip64=True) as zf:
+                    with zipfile.ZipFile(
+                        outer, "w", compression=ZIP_COMPRESSION, allowZip64=True
+                    ) as zf:
                         zf.write(fp, arcname=os.path.basename(fp))
                     if os.path.getsize(outer) <= DATAVERSE_MAX_FILE_SIZE_BYTES:
                         final_paths.append(outer)
@@ -860,7 +867,8 @@ def _dv_worker_upload_then_publish(
 
         # Guardrails
         final_paths = [
-            fp for fp in final_paths
+            fp
+            for fp in final_paths
             if os.path.exists(fp) and os.path.getsize(fp) <= DATAVERSE_MAX_FILE_SIZE_BYTES
         ]
         if not final_paths:
@@ -925,13 +933,14 @@ def streamlit_publish_to_dataverse(
     sensitive_preview = _has_personal_or_sensitive(ds_preview)
 
     # Resolve + existence check (cheap)
-    xdcas_files = files_from_x_dcas(ds_preview)
+    repokit_info_files = files_from_repokit_info(ds_preview)
     dmp_dir = str(Path(dmp_path).resolve().parent)
     resolved_preview = [
-        p if os.path.isabs(p) else os.path.normpath(os.path.join(dmp_dir, p))
-        for p in xdcas_files
+        p if os.path.isabs(p) else os.path.normpath(os.path.join(dmp_dir, p)) for p in repokit_info_files
     ]
-    uploads_raw_preview = [] if sensitive_preview else [p for p in resolved_preview if os.path.exists(p)]
+    uploads_raw_preview = (
+        [] if sensitive_preview else [p for p in resolved_preview if os.path.exists(p)]
+    )
     pre_total, _ = sizes_bytes(uploads_raw_preview)
     pre_count = len(uploads_raw_preview)
 
@@ -960,8 +969,8 @@ def streamlit_publish_to_dataverse(
         base_desc,
         pre_files=pre_count,
         pre_bytes=pre_total,
-        final_paths=[],      # ← no planning yet
-        report=[],           # ← no report yet
+        final_paths=[],  # ← no planning yet
+        report=[],  # ← no report yet
     )
     base_desc += "\n\n[INFO] Packaging is deferred. Archives will be computed just before upload."
 
@@ -988,9 +997,12 @@ def streamlit_publish_to_dataverse(
     # Compute 'restrict' now (cheap)
     def _first_distribution(_ds: dict) -> dict:
         d = _ds.get("distribution")
-        if isinstance(d, dict): return d
-        if isinstance(d, list) and d: return d[0]
+        if isinstance(d, dict):
+            return d
+        if isinstance(d, list) and d:
+            return d[0]
         return {}
+
     access = (_first_distribution(ds_preview).get("data_access") or "").strip().lower()
     restrict_files = (access in {"shared", "closed"}) or sensitive_preview
 
@@ -1005,7 +1017,7 @@ def streamlit_publish_to_dataverse(
     Thread(
         target=_dv_worker_upload_then_publish,
         kwargs=dict(
-            dmp_path=dmp_path,                         # worker re-reads DMP
+            dmp_path=dmp_path,  # worker re-reads DMP
             dataset_title=dataset.get("title") or None,
             base_url=base_url,
             token=token,
@@ -1015,5 +1027,3 @@ def streamlit_publish_to_dataverse(
         ),
         daemon=True,
     ).start()
-
-

@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import json
 import os
 import pathlib
@@ -27,7 +27,8 @@ from .dmp import (
     data_type_from_path,
     dmp_default_templates,
     ensure_dmp_shape,
-    get_extension_payload,
+    get_repokit_info_payload,
+    set_repokit_info_payload,
     load_json,
     norm_rel_urlish,
     now_iso_minute,
@@ -53,7 +54,6 @@ except Exception:
     dvc_cleaning = None
 
 
-
 DEFAULT_UPDATE_FIELDS = []  # top-level fields
 
 
@@ -67,36 +67,30 @@ IGNORE_DICT = {
     ".gitkeep",
     ".gitlog",
     ".gitattributes",
-    ".gitmodules",      # Git submodules
-    
+    ".gitmodules",  # Git submodules
     # DVC
     ".dvc",
     ".dvcignore",
     "dvc.yaml",
     "dvc.lock",
-    ".dvc.tmp",         # DVC temporary files
-    
+    ".dvc.tmp",  # DVC temporary files
     # DataLad
     ".datalad",
-    ".gitannex",        # Git-annex (used by DataLad)
-    
+    ".gitannex",  # Git-annex (used by DataLad)
     # Common metadata/system files
-    ".DS_Store",        # macOS
-    "Thumbs.db",        # Windows
-    "desktop.ini",      # Windows
-    ".directory",       # KDE
-    
+    ".DS_Store",  # macOS
+    "Thumbs.db",  # Windows
+    "desktop.ini",  # Windows
+    ".directory",  # KDE
     # Editor/IDE
     ".vscode",
     ".idea",
     ".vs",
-    
     # Python
     "__pycache__",
     "*.pyc",
     ".pytest_cache",
     ".mypy_cache",
-    
     # Documentation/metadata (optional, depends on your use case)
     "README.md",
     "LICENSE",
@@ -119,7 +113,7 @@ def get_hash(path, algo: str = "sha256"):
 
         elif os.path.isdir(path):
             try:
-                return _dirhash(path, algo, ignore = IGNORE_DICT)          # function call, not module
+                return _dirhash(path, algo, ignore=IGNORE_DICT)  # function call, not module
             except Exception:
                 # e.g., truly empty directory: give stable hash of empty content
                 return hashlib.new(algo, b"").hexdigest()
@@ -130,7 +124,7 @@ def get_hash(path, algo: str = "sha256"):
     except Exception as e:
         print(f"Error while calculating hash for {path}: {e}")
         return None
-    
+
 
 def get_file_info(file_paths):
     number_of_files = 0
@@ -153,7 +147,7 @@ def get_all_files(destination, ignore=None):
     for root, dirs, files in os.walk(destination):
         # Filter out ignored directories (modifies in-place to prevent traversal)
         dirs[:] = [d for d in dirs if d not in ignore and not d.startswith(".")]
-        
+
         # Add non-ignored files
         for file in files:
             if file not in ignore and not file.startswith("."):
@@ -161,7 +155,7 @@ def get_all_files(destination, ignore=None):
     return all_files
 
 
-def get_data_files(cfg = None , ignore=None, recursive=False):
+def get_data_files(cfg=None, ignore=None, recursive=False):
     if ignore is None:
         ignore = set()
     else:
@@ -188,11 +182,7 @@ def get_data_files(cfg = None , ignore=None, recursive=False):
 
     if use_subdirs:
         # Only traverse into subdirectories, not files at parent level
-        subdirs = sorted(
-            name
-            for name in entries
-            if os.path.isdir(os.path.join(parent_str, name))
-        )
+        subdirs = sorted(name for name in entries if os.path.isdir(os.path.join(parent_str, name)))
 
         for sub in subdirs:
             sub_path = os.path.join(parent_str, sub)
@@ -238,9 +228,9 @@ def datasets_to_json(
       - else by title
 
     Update policy (when a match is found):
-      - changed_flag := (existing.x_dcas.hash != entry.x_dcas.hash)
+      - changed_flag := (existing.repokit_info.hash != entry.repokit_info.hash)
       - overwrite ONLY:
-          * x_dcas payload in `extension` (if provided)
+          * repokit_info payload in `extension` (if provided)
           * top-level fields in `update_fields`
           * nested distribution fields in `update_distribution_fields`, matched by rel URL
       - modified := now_iso_minute() iff changed_flag
@@ -290,19 +280,16 @@ def datasets_to_json(
         existing = datasets[idx]
         merged = deepcopy(existing)
 
-        # --- 1) changed_flag from x_dcas.hash only ---
-        existing_x = get_extension_payload(existing, "x_dcas") or {}
-        entry_x = get_extension_payload(entry or {}, "x_dcas") or {}
+        # --- 1) changed_flag from repokit_info.hash only ---
+        existing_x = get_repokit_info_payload(existing) or {}
+        entry_x = get_repokit_info_payload(entry or {}) or {}
         existing_hash = existing_x.get("hash")
         entry_hash = entry_x.get("hash")
         changed_flag = existing_hash != entry_hash
 
-        # --- 2) optionally replace/insert x_dcas payload ---
+        # --- 2) optionally replace/insert repokit_info payload ---
         if entry_x:
-            merged_ext = list(existing.get("extension") or [])
-            merged_ext = [it for it in merged_ext if not (isinstance(it, dict) and "x_dcas" in it)]
-            merged_ext.append({"x_dcas": entry_x})
-            merged["extension"] = merged_ext
+            set_repokit_info_payload(merged, entry_x)
 
         # --- 3) overwrite ONLY whitelisted top-level fields ---
         for k in update_fields:
@@ -339,34 +326,39 @@ def datasets_to_json(
         else:
             merged["modified"] = existing.get("modified")
 
+        record_changed = merged != existing
         datasets[idx] = merged
-
+        if record_changed:
+            any_change_flag = True
 
         if changed_flag:
             if do_print:
-                print(f"Updated DMP entry for {existing_x.get("title", merged.get('title'))}.")
+                print(f"Updated DMP entry for {existing_x.get('title', merged.get('title'))}.")
             any_change_flag = True
         else:
             if do_print:
-                print(f"No changes detected for DMP entry: {existing_x.get("title", merged.get('title'))}.")
+                print(
+                    f"No changes detected for DMP entry: {existing_x.get('title', merged.get('title'))}."
+                )
 
     else:
-        entry_x = get_extension_payload(entry or {}, "x_dcas") or {}
+        entry_x = get_repokit_info_payload(entry or {}) or {}
         datasets.append(entry)
         if do_print:
-            print(f"Added DMP entry for {entry_x.get("destination", entry.get('title'))}.")
+            print(f"Added DMP entry for {entry_x.get('destination', entry.get('title'))}.")
         any_change_flag = True
 
-    # Sort by x_dcas.data_type then title
+    # Sort by repokit_info.data_type then title
     def _sort_key(ds):
-        x = get_extension_payload(ds, "x_dcas") or {}
+        x = get_repokit_info_payload(ds) or {}
         return (x.get("data_type") or "", ds.get("title") or "")
 
     datasets.sort(key=_sort_key)
 
     dmp["dataset"] = datasets
-    dmp["modified"] = now_iso_minute()
-    save_json(json_path, data)
+    if any_change_flag:
+        dmp["modified"] = now_iso_minute()
+        save_json(json_path, data)
 
     return any_change_flag, json_path
 
@@ -374,9 +366,9 @@ def datasets_to_json(
 def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
     """
     Ensure the DMP file exists and is shaped. For any dataset whose
-    access/download URL (or extension.x_dcas.destination) no longer exists on disk,
+    access/download URL (or extension.repokit_info.destination) no longer exists on disk,
     DO NOT delete the dataset; instead set:
-      - extension.x_dcas = {}  (as {"x_dcas": {}} in a list-shaped extension)
+      - extension.repokit_info = {}  (as {"repokit_info": {}} in a list-shaped extension)
       - distribution[*].access_url = ""
 
     Returns the absolute Path to the JSON file.
@@ -398,36 +390,59 @@ def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
     dmp["dataset"] = datasets  # ensure list exists
 
     # ---- Helpers ----
+    def _looks_remote(value: str | None) -> bool:
+        if not value or not isinstance(value, str):
+            return False
+        v = value.strip()
+        if not v:
+            return False
+        if "://" in v:
+            return True
+        if v.startswith("www."):
+            return True
+        # Treat rclone-like refs (e.g., dropbox:path) as remote, but not Windows drives (C:\...)
+        if ":" in v and not (len(v) >= 2 and v[1] == ":"):
+            return True
+        return False
+
     def _exists_on_disk(ds: dict) -> bool:
-        # any distribution URL that resolves on local FS
+        # any distribution URL that resolves on local FS OR looks like a remote URL/ref
         for dist in ds.get("distribution") or []:
             if not isinstance(dist, dict):
                 continue
             p = dist.get("access_url") or dist.get("download_url")
-            if p and (os.path.exists(p) or os.path.exists(p.replace("/", os.sep))):
+            if not p:
+                continue
+            if _looks_remote(p):
                 return True
-        # extension.x_dcas.destination
-        x = get_extension_payload(ds, "x_dcas") or {}
+            if os.path.exists(p) or os.path.exists(str(p).replace("/", os.sep)):
+                return True
+
+        # extension.repokit_info.destination
+        x = get_repokit_info_payload(ds) or {}
         dest = x.get("destination")
+        if _looks_remote(dest):
+            return True
         return bool(dest and os.path.exists(dest))
 
-    def _set_x_dcas_to_empty(ds: dict) -> None:
+    def _set_repokit_info_to_empty(ds: dict) -> None:
         """
-        Ensure extension has exactly ONE x_dcas entry formed as {"x_dcas": {}}.
-        - If extension is a dict: extension["x_dcas"] = {}
-        - If extension is a list: remove any x_dcas variants and append {"x_dcas": {}}
-          Variants removed: {"x_dcas": ...}, {"name":"x_dcas",...}, {"extension":"x_dcas",...}
+        Ensure extension has exactly ONE repokit_info entry formed as {"repokit_info": {}}.
+        - If extension is a dict: extension["repokit_info"] = {}
+        - If extension is a list: remove any repokit_info variants and append {"repokit_info": {}}
+          Variants removed: {"repokit_info": ...}, {"name":"repokit_info",...}, {"extension":"repokit_info",...}
         """
         exts = ds.get("extension")
 
         # Dict-shaped extension
         if isinstance(exts, dict):
-            exts["x_dcas"] = {}
+            exts["repokit_info"] = {}
+            exts.pop("x_dcas", None)
             return
 
-        # List-shaped (or missing): normalize to list and enforce single {"x_dcas": {}}
+        # List-shaped (or missing): normalize to list and enforce single {"repokit_info": {}}
         if not isinstance(exts, list):
-            ds["extension"] = [{"x_dcas": {}}]
+            ds["extension"] = [{"repokit_info": {}}]
             return
 
         new_exts = []
@@ -435,19 +450,19 @@ def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
             if not isinstance(ext, dict):
                 new_exts.append(ext)
                 continue
-            # Drop any prior x_dcas in any known shape
-            if "x_dcas" in ext or ext.get("name") == "x_dcas" or ext.get("extension") == "x_dcas":
+            # Drop any prior repokit_info in any known shape
+            if "repokit_info" in ext or "x_dcas" in ext or ext.get("name") in {"repokit_info", "x_dcas"} or ext.get("extension") in {"repokit_info", "x_dcas"}:
                 continue
             new_exts.append(ext)
 
-        new_exts.append({"x_dcas": {}})
+        new_exts.append({"repokit_info": {}})
         ds["extension"] = new_exts
 
     # ---- Main pass ----
     updated = 0
     for ds in datasets:
         if not _exists_on_disk(ds):
-            _set_x_dcas_to_empty(ds)
+            _set_repokit_info_to_empty(ds)
             # Clear access_url in all distributions
             for dist in ds.get("distribution") or []:
                 if isinstance(dist, dict):
@@ -462,8 +477,8 @@ def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
     return json_path
 
 
-def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
-    def make_dataset_entry(name, distribution, x_dcas_payload):
+def dataset(destination, json_path=DEFAULT_DMP_PATH, do_print: bool = True):
+    def make_dataset_entry(name, distribution, repokit_info_payload):
         templates = dmp_default_templates()
 
         # Start from a deep copy so the global template isn't mutated
@@ -480,15 +495,15 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
             dist.update(distribution)  # shallow overlay
         entry["distribution"] = [dist]
 
-        # x_dcas lives under dataset.extension as a single item: {"x_dcas": {...}}
-        xdcas = deepcopy(templates["x_dcas"])
-        if isinstance(x_dcas_payload, dict):
-            xdcas.update(x_dcas_payload)
-        entry["extension"] = [{"x_dcas": xdcas}]
+        # repokit_info lives under dataset.extension as a single item: {"repokit_info": {...}}
+        xdcas = deepcopy(templates["repokit_info"])
+        if isinstance(repokit_info_payload, dict):
+            xdcas.update(repokit_info_payload)
+        entry["extension"] = [{"repokit_info": xdcas}]
 
         return entry
 
-    def make_x_dcas_payload(
+    def make_repokit_info_payload(
         *,
         data_type: str | None = None,
         destination: str | None = None,
@@ -500,11 +515,11 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
         hash_value: str | None = None,  # 'hash' is a builtin, so use hash_value
     ) -> dict[str, Any]:
         """
-        Build x_dcas by loading templates['x_dcas'] and only updating fields
+        Build repokit_info by loading templates['repokit_info'] and only updating fields
         that already exist in the template.
         """
         templates = dmp_default_templates()
-        x = deepcopy(templates["x_dcas"])
+        x = deepcopy(templates["repokit_info"])
 
         # Prepare candidate updates (normalize types lightly)
         updates: dict[str, Any] = {
@@ -527,10 +542,10 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
 
     cookie = (
         read_toml(
-            folder = str(PROJECT_ROOT),
-            json_filename = "cookiecutter.json",
-            tool_name = "cookiecutter",
-            toml_path = "pyproject.toml",
+            folder=str(PROJECT_ROOT),
+            json_filename="cookiecutter.json",
+            tool_name="cookiecutter",
+            toml_path="pyproject.toml",
         )
         or {}
     )
@@ -541,7 +556,7 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
         data_files = [destination]
     else:
         os.makedirs(destination, exist_ok=True)
-        data_files = sorted(get_all_files(destination,ignore=IGNORE_DICT))
+        data_files = sorted(get_all_files(destination, ignore=IGNORE_DICT))
 
     number_of_files, total_size_mb, file_formats, individual_sizes_mb = get_file_info(data_files)
 
@@ -568,7 +583,7 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
     }
 
     # DCAS payload wrapped under dataset.extension
-    x_dcas_payload = make_x_dcas_payload(
+    repokit_info_payload = make_repokit_info_payload(
         data_type=data_type,
         destination=destination,
         number_of_files=number_of_files,
@@ -579,9 +594,9 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH,do_print: bool = True):
         hash_value=get_hash(destination),
     )
 
-    entry = make_dataset_entry(name, distribution, x_dcas_payload)
+    entry = make_dataset_entry(name, distribution, repokit_info_payload)
 
-    change_flag, json_path = datasets_to_json(json_path=json_path, entry=entry,do_print=do_print)
+    change_flag, json_path = datasets_to_json(json_path=json_path, entry=entry, do_print=do_print)
 
     return change_flag, json_path
 
@@ -614,7 +629,7 @@ def generate_dataset_table(
     dynamic_id_fields: set[str] = set()  # <-- collect dynamic keys from dataset_id.type
 
     for ds in datasets:
-        x = get_extension_payload(ds, "x_dcas") or {}
+        x = get_repokit_info_payload(ds) or {}
         dist = (ds.get("distribution") or [{}])[0]
 
         # Build the row (unchanged fields kept as-is)
@@ -785,7 +800,7 @@ def generate_dataset_table(
     return "".join(summary_blocks), "".join(detail_blocks)
 
 
-def dataset_to_readme(markdown_table: str, readme_file: str = "./README.md",do_print: bool = True):
+def dataset_to_readme(markdown_table: str, readme_file: str = "./README.md", do_print: bool = True):
     section_title = "**The following datasets are included in the project:**"
     readme_path = PROJECT_ROOT / pathlib.Path(readme_file)
     new_section = f"{section_title}\n\n{markdown_table.strip()}\n</details>"
@@ -812,20 +827,21 @@ def dataset_to_readme(markdown_table: str, readme_file: str = "./README.md",do_p
         print(f"{readme_path} successfully updated with dataset section.")
 
 
-def dataset_path_update(data_files: list[str] | None = None, dmp_path: str = DEFAULT_DMP_PATH, git_msg: str=None):
-    
+def dataset_path_update(
+    data_files: list[str] | None = None, dmp_path: str = DEFAULT_DMP_PATH, git_msg: str = None
+):
     if isinstance(data_files, str):
         data_files = [data_files]
-    
+
     if not data_files:
         return
     if not git_msg:
         git_msg = f"Setting dataset path for: {data_files[0]}"
-    
+
     os.chdir(PROJECT_ROOT)
 
     DEFAULT_DATASET_PATH, _ = toml_dataset_path()
-    
+
     file_descriptions = read_toml(
         folder=PROJECT_ROOT,
         json_filename="./file_descriptions.json",
@@ -835,7 +851,7 @@ def dataset_path_update(data_files: list[str] | None = None, dmp_path: str = DEF
 
     change_flag = False
     for f in data_files:
-        flag, dmp_path = dataset(destination=f, json_path=dmp_path,do_print=False)
+        flag, dmp_path = dataset(destination=f, json_path=dmp_path, do_print=False)
         if not flag:
             continue
         change_flag = True
@@ -849,11 +865,16 @@ def dataset_path_update(data_files: list[str] | None = None, dmp_path: str = DEF
     try:
         markdown_table, _ = generate_dataset_table(dmp_path, file_descriptions)
         if markdown_table:
-            dataset_to_readme(markdown_table = markdown_table, do_print = False)
+            dataset_to_readme(markdown_table=markdown_table, do_print=False)
     except Exception as e:
         print(f"Error: {e}")
 
-    if change_flag and os.path.exists(".git") and not os.path.exists(".datalad") and not os.path.exists(".dvc"):
+    if (
+        change_flag
+        and os.path.exists(".git")
+        and not os.path.exists(".datalad")
+        and not os.path.exists(".dvc")
+    ):
         with change_dir(DEFAULT_DATASET_PATH["parent_path"]):
             if os.path.exists(".git"):
                 if git_commit:
@@ -862,9 +883,10 @@ def dataset_path_update(data_files: list[str] | None = None, dmp_path: str = DEF
                     git_log_to_file(os.path.join(".gitlog"))
 
 
-
 @ensure_correct_kernel
-def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Running 'set-dataset'"):
+def main(
+    dmp_path: str = DEFAULT_DMP_PATH, do_print: bool = True, git_msg: str = "Running 'set-dataset'"
+):
     ensure_project_root()
 
     os.chdir(PROJECT_ROOT)
@@ -886,7 +908,7 @@ def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Runni
 
     if not data_files:
         return
-    
+
     file_descriptions = read_toml(
         folder=PROJECT_ROOT,
         json_filename="./file_descriptions.json",
@@ -896,7 +918,7 @@ def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Runni
 
     change_flag = False
     for f in data_files:
-        flag, json_path = dataset(destination=f, json_path=json_path,do_print=do_print)
+        flag, json_path = dataset(destination=f, json_path=json_path, do_print=do_print)
         if not flag:
             continue
         change_flag = True
@@ -910,11 +932,16 @@ def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Runni
     try:
         markdown_table, _ = generate_dataset_table(json_path, file_descriptions)
         if markdown_table:
-            dataset_to_readme(markdown_table,do_print=do_print)
+            dataset_to_readme(markdown_table, do_print=do_print)
     except Exception as e:
         print(f"Error: {e}")
 
-    if change_flag and os.path.exists(".git") and not os.path.exists(".datalad") and not os.path.exists(".dvc"):
+    if (
+        change_flag
+        and os.path.exists(".git")
+        and not os.path.exists(".datalad")
+        and not os.path.exists(".dvc")
+    ):
         with change_dir(DEFAULT_DATASET_PATH["parent_path"]):
             if os.path.exists(".git"):
                 if git_commit:
@@ -925,6 +952,3 @@ def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Runni
 
 if __name__ == "__main__":
     main()
-
-
-

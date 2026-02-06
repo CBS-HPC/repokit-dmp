@@ -35,7 +35,7 @@ from .publish import (
     build_packaging_plan_preserve_first_level,
     description_from_madmp,
     estimate_zip_total_bytes,
-    files_from_x_dcas,
+    files_from_repokit_info,
     realize_packaging_plan_parallel,
     regular_files_existing,
     related_identifiers,
@@ -278,11 +278,11 @@ def _access_right_from_madmp(ds: dict, files_exist: bool) -> tuple[str, str | No
         return {}
 
     def _first_license(dist: dict) -> dict:
-        l = dist.get("license")
-        if isinstance(l, dict):
-            return l
-        if isinstance(l, list) and l:
-            return l[0]
+        licenses = dist.get("license")
+        if isinstance(licenses, dict):
+            return licenses
+        if isinstance(licenses, list) and licenses:
+            return licenses[0]
         return {}
 
     if (not files_exist) or _has_personal_or_sensitive(ds):
@@ -411,7 +411,7 @@ def build_zenodo_metadata_from_madmp(
         md["language"] = language
 
     communities = []
-    for ext_name in ("extension", "extensions", "x_dcas"):
+    for ext_name in ("extension", "extensions", "repokit_info", "repokit_info"):
         for ext in _norm_list(ds.get(ext_name, [])):
             if isinstance(ext, dict):
                 comm = ext.get("community") or ext.get("zenodo_community")
@@ -487,10 +487,10 @@ def streamlit_publish_to_zenodo(
         _dmp_pre = json.load(fh)
     ds_pre = _guess_dataset(_dmp_pre, dataset.get("title") or None)
 
-    xdcas_files = files_from_x_dcas(ds_pre)
+    repokit_info_files = files_from_repokit_info(ds_pre)
     sensitive = _has_personal_or_sensitive(ds_pre)
-    uploads_raw = [] if sensitive else regular_files_existing(xdcas_files)
-    skipped_files = xdcas_files if sensitive else []
+    uploads_raw = [] if sensitive else regular_files_existing(repokit_info_files)
+    skipped_files = repokit_info_files if sensitive else []
     pre_total, _ = sizes_bytes(uploads_raw)
     pre_count = len(uploads_raw)
 
@@ -561,9 +561,9 @@ def streamlit_publish_to_zenodo(
                 _dmp = json.load(fh)
             ds = _guess_dataset(_dmp, dataset.get("title") or None)
 
-            xdcas_files_w = files_from_x_dcas(ds)
+            repokit_info_files_w = files_from_repokit_info(ds)
             sensitive_w = _has_personal_or_sensitive(ds)
-            uploads_raw_w = [] if sensitive_w else regular_files_existing(xdcas_files_w)
+            uploads_raw_w = [] if sensitive_w else regular_files_existing(repokit_info_files_w)
             pre_total_w, _ = sizes_bytes(uploads_raw_w)
             pre_count_w = len(uploads_raw_w)
 
@@ -599,3 +599,5 @@ def streamlit_publish_to_zenodo(
 
     Thread(target=_worker_upload_then_publish, daemon=True).start()
     # (keep existing return behavior if any)
+
+

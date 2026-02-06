@@ -161,19 +161,19 @@ def _has_personal_or_sensitive(ds: dict) -> bool:
     return _yes(ds.get("personal_data")) or _yes(ds.get("sensitive_data"))
 
 
-# ========= x_dcas file resolution =========
+# ========= repokit_info file resolution =========
 
 
-def files_from_x_dcas(ds: dict) -> list[str]:
+def files_from_repokit_info(ds: dict) -> list[str]:
     """
-    Authoritative list from extension[].x_dcas.data_files. Normalize/resolve paths.
+    Authoritative list from extension[].repokit_info.data_files. Normalize/resolve paths.
     """
     out: list[str] = []
 
     for ext in _norm_list(ds.get("extension", [])):
         if not isinstance(ext, dict):
             continue
-        x = ext.get("x_dcas") or {}
+        x = ext.get("repokit_info") or ext.get("x_dcas") or {}
         for p in _norm_list(x.get("data_files", [])):
             if not isinstance(p, str):
                 continue
@@ -188,7 +188,6 @@ def files_from_x_dcas(ds: dict) -> list[str]:
             seen.add(p)
             uniq.append(p)
     return uniq
-
 
 
 def regular_files_existing(paths: list[str]) -> list[str]:
@@ -255,7 +254,7 @@ def append_packaging_note(
 
     summary = []
     summary.append(
-        f"Original payload (from x_dcas.data_files): {pre_files} files, ~{_gb(pre_bytes)} total."
+        f"Original payload (from repokit_info.data_files): {pre_files} files, ~{_gb(pre_bytes)} total."
     )
     summary.append(f"Final upload set: {len(final_paths)} item(s), ~{_gb(post_total)} total.")
 
@@ -632,3 +631,8 @@ def realize_packaging_plan_parallel(plan: list[PackItem]) -> list[str]:
             final_paths.append(it.zip_path)
 
     return final_paths
+
+
+def files_from_x_dcas(ds: dict) -> list[str]:
+    """Backward-compatible alias for older imports."""
+    return files_from_repokit_info(ds)

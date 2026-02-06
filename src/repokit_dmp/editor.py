@@ -16,7 +16,7 @@ from datetime import date, datetime
 from hashlib import sha256  # <- for autosave hashing
 from pathlib import Path
 from typing import Any
-import wx 
+import wx
 
 import requests
 import streamlit as st
@@ -34,10 +34,18 @@ def _find_setup_root() -> Path | None:
     return None
 
 
-
 # --- Robust imports whether run as a package (CLI) or directly via `streamlit run` ---
 try:
-    from repokit_common import load_from_env, save_to_env, PROJECT_ROOT, write_toml, toml_dataset_path,JSON_FILENAME, TOOL_NAME, TOML_PATH
+    from repokit_common import (
+        load_from_env,
+        save_to_env,
+        PROJECT_ROOT,
+        write_toml,
+        toml_dataset_path,
+        JSON_FILENAME,
+        TOOL_NAME,
+        TOML_PATH,
+    )
     from . import ensure_project_root
     from .dataverse import PublishError, streamlit_publish_to_dataverse
     from .dataset import dataset_path_update, main as dataset_main
@@ -64,10 +72,19 @@ try:
     # from .publish import *
     from .zenodo import streamlit_publish_to_zenodo
 except ImportError:
-    #setup_root = _find_setup_root()
-    #if setup_root:
+    # setup_root = _find_setup_root()
+    # if setup_root:
     #    sys.path.insert(0, str(setup_root))
-    from repokit_common import load_from_env, save_to_env, PROJECT_ROOT, write_toml,toml_dataset_path, JSON_FILENAME,  TOOL_NAME,TOML_PATH
+    from repokit_common import (
+        load_from_env,
+        save_to_env,
+        PROJECT_ROOT,
+        write_toml,
+        toml_dataset_path,
+        JSON_FILENAME,
+        TOOL_NAME,
+        TOML_PATH,
+    )
     from repokit_dmp import ensure_project_root
     from repokit_dmp.dataverse import PublishError, streamlit_publish_to_dataverse
     from repokit_dmp.dataset import dataset_path_update, main as dataset_main
@@ -94,7 +111,7 @@ except ImportError:
     # from repokit_dmp.publish import *
     from repokit_dmp.zenodo import streamlit_publish_to_zenodo
 
-_ , DATA_PARENT_PATH = toml_dataset_path()
+_, DATA_PARENT_PATH = toml_dataset_path()
 # ---------------------------
 # Repository site choices (labels come from format_func)
 # ---------------------------
@@ -446,7 +463,7 @@ def edit_primitive(label: str, value: Any, path: tuple, ns: str | None = None) -
             help="Select 'yes' if this dataset reuses existing data",
         )
         return selected == "yes"
-    
+
     if _is_boolean_schema(path):
         keyb = _key_for(*path, ns, "bool")
         return st.checkbox(label, value=_coerce_to_bool(value), key=keyb)
@@ -562,17 +579,16 @@ def edit_array(
         arr[0] = edit_any(arr[0], path=(*path, 0), ns=ns)
         if removable_items:
             if st.button(
-                f"🗑️ Remove this {title_singular.lower()}", 
-                key=_key_for(*path, ns, "rm_single")
+                f"🗑️ Remove this {title_singular.lower()}", key=_key_for(*path, ns, "rm_single")
             ):
                 arr.clear()
-                #st.success(f"{title_singular} removed")
+                # st.success(f"{title_singular} removed")
                 st.rerun()
         return arr
-    
+
     # Track deletion separately - don't modify list while iterating
     item_to_delete = None
-    
+
     for i, item in enumerate(list(arr)):
         heading = f"{title_singular} #{i + 1}"
         if isinstance(item, dict):
@@ -584,24 +600,23 @@ def edit_array(
             # Only edit if we're not deleting this item
             if item_to_delete != i:
                 arr[i] = edit_any(item, path=(*path, i), ns=ns)
-            
+
             if removable_items:
                 if st.button(
-                    f"🗑️ Remove this {title_singular.lower()}", 
-                    key=_key_for(*path, i, ns, "rm")
+                    f"🗑️ Remove this {title_singular.lower()}", key=_key_for(*path, i, ns, "rm")
                 ):
                     item_to_delete = i
-    
+
     # Perform deletion after iteration is complete
     if item_to_delete is not None:
         del arr[item_to_delete]
-        #st.success(f"{title_singular} #{item_to_delete + 1} removed")
+        # st.success(f"{title_singular} #{item_to_delete + 1} removed")
         st.rerun()
-    
+
     return arr
 
 
-# Read-only JSON helper for x_dcas
+# Read-only JSON helper for repokit_info
 def _is_under_dataset_extension(path: tuple) -> bool:
     return (
         isinstance(path, tuple)
@@ -641,8 +656,8 @@ def edit_object(
         if path == ("dmp",) and key in ("project", "dataset", "contributor"):
             continue
 
-        if key == "x_dcas" and _is_under_dataset_extension(path):
-            _show_readonly_json("x_dcas (read-only)", val, key=_key_for(*path, key, ns, "ro"))
+        if key in {"repokit_info", "x_dcas"} and _is_under_dataset_extension(path):
+            _show_readonly_json("repokit_info (read-only)", val, key=_key_for(*path, key, ns, "ro"))
             continue
 
         if key == "extension" and isinstance(val, list):
@@ -780,7 +795,9 @@ def draw_projects_section(dmp_root: dict[str, Any]) -> None:
         # _key_for("dmp", "project", i, "title", "prim")
         title_key = _key_for("dmp", "project", i, "title", "prim")
         live_title = st.session_state.get(title_key, proj.get("title") or proj.get("name"))
-        header_title = (live_title or proj.get("title") or proj.get("name") or "Project").strip() or "Project"
+        header_title = (
+            live_title or proj.get("title") or proj.get("name") or "Project"
+        ).strip() or "Project"
 
         with st.expander(f"Project #{i + 1}: {header_title}", expanded=False):
             projects[i] = edit_any(proj, path=("dmp", "project", i), ns=None)
@@ -875,7 +892,7 @@ def _reload_dmp_from_disk(
     """
     Reload the DMP JSON from disk into session_state["data"], optionally
     clearing Streamlit widget keys and resetting the autosave baseline.
-    
+
     If force_widget_refresh=True, increment a counter to force all widgets to recreate.
     If rerun=True, calls st.rerun() at the end.
     """
@@ -887,34 +904,35 @@ def _reload_dmp_from_disk(
         st.error(f"Failed to reload updated DMP: {e}")
         # On a hard failure, don't try to clear keys or rerun
         return
-    
+
     if clear_widget_keys:
         # Clear all DMP-related widget keys so they pick up reloaded values
         keys_to_clear = [
-            k for k in list(st.session_state.keys())
+            k
+            for k in list(st.session_state.keys())
             if isinstance(k, str) and (k.startswith("dmp|") or k.startswith("deep|"))
         ]
         for k in keys_to_clear:
             del st.session_state[k]
-    
+
     if reset_autosave_baseline:
         st.session_state.pop("__autosave_last_hash__", None)
-    
+
     if force_widget_refresh:
         # Increment counter to force all widgets to recreate with new keys
         counter = st.session_state.get("__widget_refresh_counter__", 0)
         st.session_state["__widget_refresh_counter__"] = counter + 1
-    
+
     if rerun:
         st.rerun()
 
 
 def draw_datasets_section(dmp_root: dict) -> None:
     st.subheader("Datasets")
-    
+
     # Get widget refresh counter for forcing widget recreation
     widget_version = st.session_state.get("__widget_refresh_counter__", 0)
-    
+
     datasets = dmp_root.get("dataset")
     if not isinstance(datasets, list):
         datasets = []
@@ -938,14 +956,14 @@ def draw_datasets_section(dmp_root: dict) -> None:
                 title_val = str(new_ds.get("title") or "").strip()
                 if not title_val:
                     new_ds["title"] = f"Dataset {new_index}"
-            
+
             datasets.append(new_ds)
             dmp_root["dataset"] = datasets
-            
+
             if "data" in st.session_state and isinstance(st.session_state["data"], dict):
                 st.session_state["data"].setdefault("dmp", {})
                 st.session_state["data"]["dmp"] = dmp_root
-            
+
             _autosave_if_changed(force_write=True)
             st.rerun()
 
@@ -964,7 +982,6 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
     with top[2]:
         if st.button("Change Path", key="change_parent_data_path"):
-
             # Start from current parent_data_path (or fallback)
             start_path = parent_data_path or st.session_state.get(
                 "__parent_data_path__", str(DATA_PARENT_PATH)
@@ -1132,10 +1149,14 @@ def draw_datasets_section(dmp_root: dict) -> None:
                     try:
                         dv_base, dv_alias = get_dataverse_config()
                         if not dv_base:
-                            st.warning("Please select a Dataverse base URL in the sidebar and press Save.")
+                            st.warning(
+                                "Please select a Dataverse base URL in the sidebar and press Save."
+                            )
                             st.stop()
                         if _is_empty_alias(dv_alias):
-                            st.warning("Please enter a Dataverse collection (alias) in the sidebar and press Save.")
+                            st.warning(
+                                "Please enter a Dataverse collection (alias) in the sidebar and press Save."
+                            )
                             st.stop()
                         streamlit_publish_to_dataverse(
                             dataset=ds,
@@ -1222,7 +1243,9 @@ def draw_datasets_section(dmp_root: dict) -> None:
                             dmp_root["dataset"] = datasets
 
                             # And in the top-level DMP object in session_state
-                            if "data" in st.session_state and isinstance(st.session_state["data"], dict):
+                            if "data" in st.session_state and isinstance(
+                                st.session_state["data"], dict
+                            ):
                                 st.session_state["data"].setdefault("dmp", {})
                                 st.session_state["data"]["dmp"] = dmp_root
 
@@ -1231,8 +1254,8 @@ def draw_datasets_section(dmp_root: dict) -> None:
                                 _autosave_if_changed(force_write=True)
 
                                 # Resolve the path that autosave wrote to
-                                save_path_str = (
-                                    st.session_state.get("save_path") or str(DEFAULT_DMP_PATH)
+                                save_path_str = st.session_state.get("save_path") or str(
+                                    DEFAULT_DMP_PATH
                                 )
                                 save_path = Path(save_path_str).resolve()
 
@@ -1770,7 +1793,7 @@ def _autosave_if_changed(force_write: bool = False) -> None:
     """
     If the DMP content changed since last snapshot, bump modified and write to disk.
     Also sync cookiecutter.json from the current DMP.
-    
+
     If `force_write=True`, we always write once even if this is the first call
     (i.e. no existing baseline hash yet).
     """
