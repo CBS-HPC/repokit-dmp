@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from repokit_common import PROJECT_ROOT, read_toml, write_toml, split_multi, toml_dataset_path, JSON_FILENAME, TOML_PATH, TOOL_NAME
+from . import ensure_project_root
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -1462,6 +1463,7 @@ def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
 
 
 def main() -> None:
+    ensure_project_root()
     os.chdir(PROJECT_ROOT)
     create_or_update_dmp_from_schema(dmp_path=DEFAULT_DMP_PATH)
 

@@ -23,6 +23,7 @@ dev = [
   "uv",
 ]
 [project.scripts]
+repokit-dmp = "repokit_dmp.cli:main"
 set-dataset = "repokit_dmp.dataset:main"
 dcas-migration = "repokit_dmp.dcas:main"
 dmp-update = "repokit_dmp.dmp:main"
@@ -34,4 +35,3 @@ target-version = "py312"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

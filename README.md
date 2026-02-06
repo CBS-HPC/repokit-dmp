@@ -3,15 +3,26 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/CBS-HPC/repokit-dmp/actions/workflows/ci.yml/badge.svg)](https://github.com/CBS-HPC/repokit-dmp/actions/workflows/ci.yml)
 
-Data Management Plan (DMP) tooling for research projects. This package can be used **independently** or as part of `repokit`.
+`repokit-dmp` provides **Data Management Plan (DMP)** tooling for research projects. It is designed to be used standalone or as part of `repokit`.
 
-## Highlights
+## What it does
 
-- Machine-actionable DMP (maDMP) helpers
-- Dataset metadata generation and updates
-- Optional integrations for publishing workflows
+- Create and update machine-actionable DMPs (`dmp.json`)
+- Generate dataset entries and metadata
+- Support DCAS migration utilities
+- Optional editor UI for guided updates
 
-## Installation
+## Requirements
+
+- Python 3.12+
+
+## Install
+
+From PyPI:
+
+```bash
+pip install repokit-dmp
+```
 
 From source:
 
@@ -21,14 +32,44 @@ cd repokit-dmp
 pip install -e .
 ```
 
-## CLI
+Using uv:
 
 ```bash
-set-dataset --help
+uv pip install repokit-dmp
+```
+
+## Quick start
+
+Run the commands from your **project root** (the tool treats the current working directory as `PROJECT_ROOT`).
+
+Create or update a DMP:
+
+```bash
 dmp-update
+```
+
+Update dataset metadata:
+
+```bash
+set-dataset
+```
+
+Open the interactive editor:
+
+```bash
 dmp-editor
+```
+
+Run DCAS migration helpers:
+
+```bash
 dcas-migration
 ```
+
+## Files and inputs
+
+- `dmp.json` is created/updated in the current working directory.
+- If present, `pyproject.toml` and `cookiecutter.json` are used to seed metadata.
 
 ## Development
 

@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -9,10 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: CBS-HPC/repokit-common
+          path: repokit-common
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: python -m pip install -U pip
-      - run: pip install -e ".[dev]"
-      - run: ruff check .
+      - run: pip install -e ./repokit-common
+      - run: pip install -e . --no-deps
+      - run: pip install requests PyYAML nbformat jsonschema dirhash streamlit pytest "ruff>=0.6" uv
       - run: pytest

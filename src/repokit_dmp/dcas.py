@@ -9,6 +9,7 @@ from typing import Any
 import requests
 
 from repokit_common import PROJECT_ROOT, language_dirs, load_from_env, toml_dataset_path
+from . import ensure_project_root
 from .dataset import get_data_files
 
 DEFAULT_DATASET_PATH, _= toml_dataset_path()
@@ -431,6 +432,7 @@ def copy_data_items(
 
 
 def main():
+    ensure_project_root()
     # Change to project root directory
     os.chdir(PROJECT_ROOT)
 

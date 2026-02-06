@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import json
 import os
 import pathlib
@@ -8,11 +8,18 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
+from dirhash import dirhash as _dirhash
 
+from repokit_common import (
+    PROJECT_ROOT,
+    change_dir,
+    check_path_format,
+    ensure_correct_kernel,
+    read_toml,
+    toml_dataset_path,
+)
 
-from dirhash import dirhash as _dirhash  # <-- import the function
-
-from repokit_common import PROJECT_ROOT, change_dir, check_path_format, ensure_correct_kernel, read_toml, toml_dataset_path
+from . import ensure_project_root
 from .dmp import (
     DEFAULT_DMP_PATH,
     LICENSE_LINKS,
@@ -21,15 +28,12 @@ from .dmp import (
     dmp_default_templates,
     ensure_dmp_shape,
     get_extension_payload,
-    # ── functions ────────────────────────────────────────────
     load_json,
-    main,
     norm_rel_urlish,
     now_iso_minute,
     save_json,
     to_bytes_mb,
 )
-
 
 try:
     from repokit.vcs import (
@@ -861,6 +865,7 @@ def dataset_path_update(data_files: list[str] | None = None, dmp_path: str = DEF
 
 @ensure_correct_kernel
 def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Running 'set-dataset'"):
+    ensure_project_root()
 
     os.chdir(PROJECT_ROOT)
 
@@ -920,3 +925,6 @@ def main(dmp_path:str = DEFAULT_DMP_PATH, do_print:bool=True, git_msg:str="Runni
 
 if __name__ == "__main__":
     main()
+
+
+
