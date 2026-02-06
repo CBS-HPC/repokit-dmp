@@ -24,6 +24,15 @@ From PyPI:
 pip install repokit-dmp
 ```
 
+From wheel (`.whl`):
+
+```bash
+# from local dist/
+pip install dist/repokit_dmp-0.1-py3-none-any.whl
+# or
+uv pip install dist/repokit_dmp-0.1-py3-none-any.whl
+```
+
 From source:
 
 ```bash
