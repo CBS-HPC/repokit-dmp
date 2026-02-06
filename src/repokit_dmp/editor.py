@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Streamlit RDA-DMP JSON editor with per-dataset publish buttons:
 - "Publish to Zenodo"
@@ -21,6 +21,18 @@ import wx
 import requests
 import streamlit as st
 from streamlit.web.cli import main as st_main
+
+
+def _find_setup_root() -> Path | None:
+    candidates = [Path.cwd(), *Path.cwd().parents]
+    here = Path(__file__).resolve()
+    candidates.extend([here, *here.parents])
+    for p in candidates:
+        setup_dir = p / "setup"
+        if setup_dir.is_dir():
+            return setup_dir
+    return None
+
 
 
 # --- Robust imports whether run as a package (CLI) or directly via `streamlit run` ---
@@ -52,8 +64,9 @@ try:
     # from .publish import *
     from .zenodo import streamlit_publish_to_zenodo
 except ImportError:
-    pkg_root = Path(__file__).resolve().parent.parent.parent / "setup"
-    sys.path.insert(0, str(pkg_root))
+    setup_root = _find_setup_root()
+    if setup_root:
+        sys.path.insert(0, str(setup_root))
     from repokit_common import load_from_env, save_to_env, PROJECT_ROOT, write_toml,toml_dataset_path, JSON_FILENAME,  TOOL_NAME,TOML_PATH
     from repokit_dmp.dataverse import PublishError, streamlit_publish_to_dataverse
     from repokit_dmp.dataset import dataset_path_update, main as dataset_main
@@ -92,7 +105,7 @@ ZENODO_API_CHOICES = [
 DATAVERSE_SITE_CHOICES = [
     ("https://demo.dataverse.deic.dk", "DeiC Demo (recommended)"),
     ("https://dataverse.deic.dk", "DeiC Production"),
-    ("other", "Otherâ€¦"),
+    ("other", "Other…"),
 ]
 
 
@@ -132,10 +145,10 @@ def _normalize_chosen_path(chosen: str) -> str:
 
     try:
         rel = p.resolve().relative_to(root)
-        # Subpath of PROJECT_ROOT â†’ keep relative
+        # Subpath of PROJECT_ROOT → keep relative
         return rel.as_posix()
     except ValueError:
-        # Not under PROJECT_ROOT â†’ keep absolute
+        # Not under PROJECT_ROOT → keep absolute
         return p.resolve().as_posix()
 
 
@@ -242,9 +255,9 @@ def _ensure_dataset_id_before_distribution(keys: list[str]) -> list[str]:
     return keys
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 # Minimal helpers (schema-aware editors)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 def _key_for(*parts: Any) -> str:
@@ -544,11 +557,11 @@ def edit_array(
         return lines
     if len(arr) == 1 and isinstance(arr[0], dict):
         label = path[-1] if path else title_singular
-        st.caption(f"{label} â€” single entry")
+        st.caption(f"{label} — single entry")
         arr[0] = edit_any(arr[0], path=(*path, 0), ns=ns)
         if removable_items:
             if st.button(
-                f"ðŸ—‘ï¸ Remove this {title_singular.lower()}", 
+                f"🗑️ Remove this {title_singular.lower()}", 
                 key=_key_for(*path, ns, "rm_single")
             ):
                 arr.clear()
@@ -573,7 +586,7 @@ def edit_array(
             
             if removable_items:
                 if st.button(
-                    f"ðŸ—‘ï¸ Remove this {title_singular.lower()}", 
+                    f"🗑️ Remove this {title_singular.lower()}", 
                     key=_key_for(*path, i, ns, "rm")
                 ):
                     item_to_delete = i
@@ -680,9 +693,9 @@ def edit_any(value: Any, path: tuple, ns: str | None = None) -> Any:
     return edit_primitive("value", value, path, ns=ns)
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 # High-level sections (Root, Projects, Datasets)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 def find_default_dmp_path(start: Path | None = None) -> Path:
@@ -738,7 +751,7 @@ def draw_root_section(dmp_root: dict[str, Any]) -> None:
 
     add_col, _ = st.columns([1, 6])
     with add_col:
-        if st.button("âž• Add contributor", key=_key_for("dmp", "contributor", "add", "bottom")):
+        if st.button("➕ Add contributor", key=_key_for("dmp", "contributor", "add", "bottom")):
             contribs = dmp_root.setdefault("contributor", [])
             contribs.append(deepcopy(default_contrib))
             st.rerun()
@@ -754,7 +767,7 @@ def draw_projects_section(dmp_root: dict[str, Any]) -> None:
     cols = st.columns(2)
     templates = dmp_default_templates()
     with cols[0]:
-        if st.button("âž• Add project", key=_key_for("project", "add")):
+        if st.button("➕ Add project", key=_key_for("project", "add")):
             projects.append(templates["project"])
             st.rerun()
 
@@ -772,7 +785,7 @@ def draw_projects_section(dmp_root: dict[str, Any]) -> None:
             projects[i] = edit_any(proj, path=("dmp", "project", i), ns=None)
 
             if st.button(
-                "ðŸ—‘ï¸ Remove this project",
+                "🗑️ Remove this project",
                 key=_key_for("dmp", "project", i, "rm"),
             ):
                 project_to_delete = i
@@ -795,8 +808,8 @@ def _browse_for_directory(
     Args:
         start_path: Initial folder or file path to start from.
         title:      Dialog title.
-        dir_only:   If True â†’ choose a directory.
-                    If False â†’ choose a single file.
+        dir_only:   If True → choose a directory.
+                    If False → choose a single file.
 
     Returns:
         Selected path as a string (directory or file, depending on dir_only),
@@ -917,7 +930,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
     parent_data_path = st.session_state["__parent_data_path__"]
 
     with top[0]:
-        if st.button("âž• Add dataset", key=_key_for("dataset", "add")):
+        if st.button("➕ Add dataset", key=_key_for("dataset", "add")):
             new_index = len(datasets) + 1
             new_ds = deepcopy(templates["dataset"])
             if isinstance(new_ds, dict):
@@ -1024,7 +1037,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
                     return url
         return ""
 
-    # Track only reuse changes â€“ deletion is now inline
+    # Track only reuse changes – deletion is now inline
     is_reused_changed = False
 
     for i, ds in enumerate(datasets):
@@ -1066,7 +1079,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
             # --- INLINE DELETE: remove immediately on click ---
             with cols[0]:
-                if st.button("ðŸ—‘ï¸ Remove this dataset", key=f"rm_ds_{i}_v{widget_version}"):
+                if st.button("🗑️ Remove this dataset", key=f"rm_ds_{i}_v{widget_version}"):
                     # Delete the dataset at index i right away
                     del datasets[i]
                     dmp_root["dataset"] = datasets
@@ -1139,11 +1152,11 @@ def draw_datasets_section(dmp_root: dict) -> None:
                 if alias_missing:
                     if site_choice == "other":
                         st.caption(
-                            "âš ï¸ Enter a Dataverse collection (alias) in the sidebar to enable publishing."
+                            "⚠️ Enter a Dataverse collection (alias) in the sidebar to enable publishing."
                         )
                     else:
                         st.caption(
-                            "âš ï¸ No collection (alias) detected. We'll try to infer it, or set one in the sidebar."
+                            "⚠️ No collection (alias) detected. We'll try to infer it, or set one in the sidebar."
                         )
 
             with cols[3]:
@@ -1289,7 +1302,7 @@ def _get_env_or_secret(key: str, default: str = "") -> str:
 
 
 # ---------------------------
-# Universityâ†’Dataverse helpers
+# University→Dataverse helpers
 # ---------------------------
 def _extract_domain_candidates_from_context(dmp_data: dict[str, Any] | None) -> list[str]:
     candidates: list[str] = []
@@ -1414,13 +1427,13 @@ def test_zenodo_connection(
 
         # Community exists
         if token_ok:
-            return True, f"Zenodo reachable âœ…, token OK, and community '{community}' found."
-        return True, f"Zenodo reachable âœ… and community '{community}' found (no token check)."
+            return True, f"Zenodo reachable ✅, token OK, and community '{community}' found."
+        return True, f"Zenodo reachable ✅ and community '{community}' found (no token check)."
 
     # No community provided
     if token_ok:
-        return True, "Zenodo reachable âœ… and token looks valid."
-    return True, "Zenodo reachable âœ… (no token provided, skipped token check)."
+        return True, "Zenodo reachable ✅ and token looks valid."
+    return True, "Zenodo reachable ✅ (no token provided, skipped token check)."
 
 
 def test_dataverse_connection(base_url: str, token: str, alias: str) -> tuple[bool, str]:
@@ -1450,8 +1463,8 @@ def test_dataverse_connection(base_url: str, token: str, alias: str) -> tuple[bo
         )
         if status_alias == 200:
             if token:
-                return True, "Dataverse reachable âœ…, token OK, and collection (alias) found."
-            return True, "Dataverse reachable âœ… and collection (alias) found (no token check)."
+                return True, "Dataverse reachable ✅, token OK, and collection (alias) found."
+            return True, "Dataverse reachable ✅ and collection (alias) found (no token check)."
         elif status_alias == 404:
             return (
                 False,
@@ -1464,8 +1477,8 @@ def test_dataverse_connection(base_url: str, token: str, alias: str) -> tuple[bo
 
     # No alias provided
     if token:
-        return True, "Dataverse reachable âœ… and token looks valid (no alias provided)."
-    return True, "Dataverse reachable âœ… (no token or alias provided)."
+        return True, "Dataverse reachable ✅ and token looks valid (no alias provided)."
+    return True, "Dataverse reachable ✅ (no token or alias provided)."
 
 
 def get_zenodo_community() -> str:
@@ -1513,7 +1526,7 @@ def render_token_controls():
             z_comm = st.text_input(
                 "Community (optional)",
                 value=st.session_state["zenodo_community"],
-                placeholder="e.g. cbs, ku, sduâ€¦",
+                placeholder="e.g. cbs, ku, sdu…",
                 help="Community identifier (slug). Leave blank to omit.",
                 key="__zen_comm__",
             )
@@ -1593,7 +1606,7 @@ def render_token_controls():
                 options=dv_options,
                 index=dv_idx,
                 format_func=lambda v: dict(DATAVERSE_SITE_CHOICES)[v],
-                help="Pick demo or production. Choose 'Otherâ€¦' to enter a custom base URL.",
+                help="Pick demo or production. Choose 'Other…' to enter a custom base URL.",
                 key="__dv_site__",
             )
 
@@ -1725,9 +1738,9 @@ def get_dataverse_config() -> tuple[str, str]:
     return base, alias
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 # Autosave helpers
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 def _ordered_output_without_touching_modified() -> dict[str, Any]:
@@ -1776,7 +1789,7 @@ def _autosave_if_changed(force_write: bool = False) -> None:
     if first_call and not force_write:
         st.session_state["__autosave_last_hash__"] = current_hash
         st.session_state["__autosave_feedback__"] = (
-            f"Autosave ready â€“ changes will be saved to {base_path.name}"
+            f"Autosave ready – changes will be saved to {base_path.name}"
         )
         return
 
@@ -1784,7 +1797,7 @@ def _autosave_if_changed(force_write: bool = False) -> None:
     if (not first_call) and current_hash == st.session_state["__autosave_last_hash__"]:
         return
 
-    # Something changed (or we explicitly forced a write) â†’ bump modified and save
+    # Something changed (or we explicitly forced a write) → bump modified and save
     to_save = deepcopy(current_snapshot)
     try:
         to_save["dmp"]["modified"] = now_iso_minute()
@@ -1798,7 +1811,7 @@ def _autosave_if_changed(force_write: bool = False) -> None:
         )
         st.session_state["__autosave_last_hash__"] = current_hash
         st.session_state["__autosave_feedback__"] = (
-            f"ðŸ’¾ Autosaved {base_path.name} at {datetime.now().strftime('%H:%M:%S')}"
+            f"💾 Autosaved {base_path.name} at {datetime.now().strftime('%H:%M:%S')}"
         )
 
         # Keep cookiecutter.json in sync with the autosaved DMP
@@ -1808,12 +1821,12 @@ def _autosave_if_changed(force_write: bool = False) -> None:
             st.session_state["__autosave_feedback__"] += f" (cookiecutter sync failed: {e})"
 
     except Exception as e:
-        st.session_state["__autosave_feedback__"] = f"âš ï¸ Autosave failed: {e}"
+        st.session_state["__autosave_feedback__"] = f"⚠️ Autosave failed: {e}"
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 # App
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 def _schema_fixups_in_place(data: dict[str, Any]) -> dict[str, Any]:
@@ -1847,7 +1860,7 @@ def _ensure_data_initialized(default_path: Path) -> None:
                 st.session_state["data"] = ensure_dmp_shape(json.load(f))
             st.session_state["__loaded_from__"] = str(default_path.resolve())
             st.session_state["__load_message__"] = (
-                f"âœ… Loaded default DMP from {default_path.resolve()}"
+                f"✅ Loaded default DMP from {default_path.resolve()}"
             )
             st.session_state["save_path"] = str(default_path.resolve())
             return
@@ -1856,7 +1869,7 @@ def _ensure_data_initialized(default_path: Path) -> None:
 
     st.session_state["data"] = ensure_dmp_shape({})
     st.session_state["__loaded_from__"] = "new"
-    st.session_state["__load_message__"] = "âš ï¸ Started with an empty DMP."
+    st.session_state["__load_message__"] = "⚠️ Started with an empty DMP."
     st.session_state["save_path"] = str(default_path)
 
 
@@ -1907,7 +1920,7 @@ def main() -> None:
     # Sidebar: Load / Save
     with st.sidebar:
         st.header("Load / Save")
-        st.caption(f"Schema: {'âœ… loaded' if schema_now else 'âš ï¸ unavailable (fallbacks)'}")
+        st.caption(f"Schema: {'✅ loaded' if schema_now else '⚠️ unavailable (fallbacks)'}")
 
         uploader_key = f"open_json_uploader_{st.session_state['__uploader_ver__']}"
         uploaded = st.file_uploader(
@@ -1930,7 +1943,7 @@ def main() -> None:
                     st.session_state["data"] = ensure_dmp_shape(data)
                     st.session_state["__last_upload_hash__"] = h
                     st.session_state["__loaded_from__"] = str(dst_path)
-                    st.session_state["__load_message__"] = f"âœ… Loaded DMP from {dst_path}"
+                    st.session_state["__load_message__"] = f"✅ Loaded DMP from {dst_path}"
                     st.session_state["save_path"] = str(dst_path)
                     st.session_state.pop("ds_selected", None)
                     # reset autosave baseline to newly loaded content
@@ -1947,7 +1960,7 @@ def main() -> None:
                         st.session_state["data"] = ensure_dmp_shape(json.load(f))
                     st.session_state["__loaded_from__"] = str(default_path.resolve())
                     st.session_state["__load_message__"] = (
-                        f"âœ… Loaded default DMP from {default_path.resolve()}"
+                        f"✅ Loaded default DMP from {default_path.resolve()}"
                     )
                     st.session_state["save_path"] = str(default_path.resolve())
                 else:
@@ -1955,7 +1968,7 @@ def main() -> None:
                     st.session_state["data"] = ensure_dmp_shape({})
                     st.session_state["__loaded_from__"] = "new"
                     st.session_state["__load_message__"] = (
-                        f"âš ï¸ Default DMP not found. Started a new DMP (will save to {new_path})"
+                        f"⚠️ Default DMP not found. Started a new DMP (will save to {new_path})"
                     )
                     st.session_state["save_path"] = str(new_path)
                 st.session_state.pop("ds_selected", None)
@@ -1964,11 +1977,11 @@ def main() -> None:
             except Exception as e:
                 st.error(f"Failed to reload default DMP: {e}")
 
-        if st.button("âž• Create New DMP"):
+        if st.button("➕ Create New DMP"):
             st.session_state["data"] = ensure_dmp_shape({})
             new_path = (working_folder / "new_dmp.json").resolve()
             st.session_state["__loaded_from__"] = "new"
-            st.session_state["__load_message__"] = f"âœ… Started a new DMP (will save to {new_path})"
+            st.session_state["__load_message__"] = f"✅ Started a new DMP (will save to {new_path})"
             st.session_state["save_path"] = str(new_path)
             st.session_state["__last_upload_hash__"] = None
             st.session_state.pop("ds_selected", None)
@@ -1979,7 +1992,7 @@ def main() -> None:
         out_for_dl = _current_ordered_output()
 
         download_clicked = st.download_button(
-            "â¬‡ï¸ Download JSON",
+            "⬇️ Download JSON",
             data=json.dumps(out_for_dl, indent=4, ensure_ascii=False).encode("utf-8"),
             file_name=Path(st.session_state["save_path"]).name or "dmp.json",
             mime="application/json",
@@ -1997,7 +2010,7 @@ def main() -> None:
                 )
                 update_cookiecutter_from_dmp(dmp_path=save_path)
                 # Optional small hint in the UI (non-blocking)
-                st.caption("âœ… cookiecutter.json updated from downloaded DMP")
+                st.caption("✅ cookiecutter.json updated from downloaded DMP")
             except Exception as e:
                 st.warning(f"cookiecutter.json could not be updated: {e}")
 
