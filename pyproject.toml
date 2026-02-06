@@ -5,6 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "repokit-dmp"
 version = "0.1"
+description = "Data management plan tools for Repokit"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "CBS-HPC"}]
+keywords = ["research", "reproducibility", "automation", "data-management"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+]
+
 dependencies = [
   "requests",
   "PyYAML",
@@ -14,7 +26,14 @@ dependencies = [
   "streamlit",
   "repokit-common",
 ]
+
 requires-python = ">=3.12"
+
+[project.urls]
+Homepage = "https://github.com/CBS-HPC/repokit-dmp"
+Repository = "https://github.com/CBS-HPC/repokit-dmp"
+Issues = "https://github.com/CBS-HPC/repokit-dmp/issues"
+
 
 [project.optional-dependencies]
 dev = [
