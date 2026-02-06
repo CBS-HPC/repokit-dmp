@@ -68,6 +68,7 @@ except ImportError:
     #if setup_root:
     #    sys.path.insert(0, str(setup_root))
     from repokit_common import load_from_env, save_to_env, PROJECT_ROOT, write_toml,toml_dataset_path, JSON_FILENAME,  TOOL_NAME,TOML_PATH
+    from repokit_dmp import ensure_project_root
     from repokit_dmp.dataverse import PublishError, streamlit_publish_to_dataverse
     from repokit_dmp.dataset import dataset_path_update, main as dataset_main
     from repokit_dmp.dmp import (
