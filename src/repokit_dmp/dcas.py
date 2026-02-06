@@ -12,7 +12,8 @@ from repokit_common import PROJECT_ROOT, language_dirs, load_from_env, toml_data
 from . import ensure_project_root
 from .dataset import get_data_files
 
-DEFAULT_DATASET_PATH, _= toml_dataset_path()
+DEFAULT_DATASET_PATH, _ = toml_dataset_path()
+
 
 # Download Readme template:
 def download_README_template(
@@ -451,7 +452,7 @@ def main():
     items, _ = get_data_files()  # second value is the mixed list of dirs/files
 
     print(items)
-    copy_data_items(items = items, dest_base = "./DCAS template/data", overwrite=True)
+    copy_data_items(items=items, dest_base="./DCAS template/data", overwrite=True)
 
     _ = copy_items(
         items=[

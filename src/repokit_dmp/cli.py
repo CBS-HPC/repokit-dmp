@@ -1,4 +1,4 @@
-﻿"""Unified CLI entrypoint for repokit-dmp."""
+"""Unified CLI entrypoint for repokit-dmp."""
 
 from __future__ import annotations
 
