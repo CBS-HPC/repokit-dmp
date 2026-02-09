@@ -22,8 +22,13 @@ from . import ensure_project_root
 def load_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
+    if path.stat().st_size == 0:
+        return {}
     with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
 
 
 def save_json(path: Path, data: dict[str, Any]) -> None:
