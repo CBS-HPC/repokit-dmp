@@ -5,13 +5,13 @@
 
 Data Management Plan (DMP) tooling for the Research Template. Works standalone or as part of the repokit toolchain.
 
-## ?? Installation
+## Installation
 
 ```bash
 pip install repokit-dmp
 ```
 
-## ?? CLI
+## CLI
 
 | Command | Description |
 |---------|-------------|
@@ -20,7 +20,7 @@ pip install repokit-dmp
 | `repokit-dmp editor` | Launch Streamlit editor for DMP + publishing helpers. |
 | `repokit-dmp dcas-migration` | Run DCAS migration/validation workflow. |
 
-## ?? Command reference
+## Command reference
 
 ### <a id="repokit-dmp-dataset"></a>
 <details>
@@ -186,6 +186,6 @@ repokit-dmp editor ssh
 ---
 </details>
 
-## ?? License
+## License
 
 MIT
