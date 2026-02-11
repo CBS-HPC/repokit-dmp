@@ -451,8 +451,7 @@ def main():
 
     items, _ = get_data_files()  # second value is the mixed list of dirs/files
 
-    print(items)
-    copy_data_items(items=items, dest_base="./DCAS template/data", overwrite=True)
+    copy_data_items(items = items, dest_base = "./DCAS template/data", overwrite=True)
 
     # FIXME Add items to copy to pyproject.toml instead of hardcoding here
 
