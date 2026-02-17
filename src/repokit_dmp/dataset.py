@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
@@ -11,12 +12,15 @@ from typing import Any
 from dirhash import dirhash as _dirhash
 
 from repokit_common import (
+    JSON_FILENAME,
     PROJECT_ROOT,
+    TOML_PATH,
     change_dir,
     check_path_format,
     ensure_correct_kernel,
     read_toml,
     toml_dataset_path,
+    write_toml,
 )
 
 from . import ensure_project_root
@@ -231,6 +235,181 @@ def _pseudonymize_data_files(data_files: Iterable[str]) -> list[str]:
         suffix = pathlib.Path(path).suffix.lower()
         pseudo_files.append(f"file_{idx:04d}{suffix}")
     return pseudo_files
+
+
+def _dataset_primary_path(ds: dict) -> str:
+    dists = ds.get("distribution") or []
+    if isinstance(dists, list):
+        for dist in dists:
+            if not isinstance(dist, dict):
+                continue
+            for key in ("access_url", "download_url"):
+                val = dist.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+    x = get_repokit_info_payload(ds) or {}
+    dest = x.get("destination")
+    return dest.strip() if isinstance(dest, str) else ""
+
+
+def _to_project_relative(path_value: str) -> str | None:
+    raw = (path_value or "").strip()
+    if not raw:
+        return None
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", raw):
+        return None
+    p = pathlib.Path(raw)
+    if p.is_absolute():
+        try:
+            rel = p.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+        except Exception:
+            return None
+    else:
+        rel = p.as_posix()
+    rel = rel.lstrip("./").strip()
+    return rel or None
+
+
+def _gitignore_entry(rel_path: str) -> str:
+    p = PROJECT_ROOT / rel_path
+    if p.exists() and p.is_dir():
+        return f"/{rel_path.rstrip('/')}/"
+    return f"/{rel_path.rstrip('/')}"
+
+
+def _upsert_gitignore_patterns(gitignore_path: pathlib.Path, entries: list[str]) -> bool:
+    if not entries:
+        return False
+    existing_lines: list[str] = []
+    if gitignore_path.exists():
+        try:
+            existing_lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            existing_lines = []
+    existing_set = {ln.strip() for ln in existing_lines if ln.strip()}
+    to_add = [e for e in entries if e.strip() and e.strip() not in existing_set]
+    if not to_add:
+        return False
+    out = list(existing_lines)
+    if out and out[-1].strip() != "":
+        out.append("")
+    out.extend(to_add)
+    gitignore_path.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+    return True
+
+
+def _prune_data_gitlog_if_present() -> bool:
+    data_root = (PROJECT_ROOT / "data").resolve()
+    gitlog = data_root / ".gitlog"
+    if not gitlog.exists():
+        return False
+
+    try:
+        lines = gitlog.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return False
+
+    changed = False
+    kept: list[str] = []
+    stat_line_re = re.compile(r"^\s*(?P<path>[^|]+?)\s+\|\s+\d+")
+
+    for line in lines:
+        m = stat_line_re.match(line)
+        if not m:
+            kept.append(line)
+            continue
+
+        rel = m.group("path").strip().replace("\\", "/")
+        if not rel or "{" in rel or "}" in rel:
+            kept.append(line)
+            continue
+
+        fs_path = (data_root / pathlib.Path(rel)).resolve()
+        if fs_path.exists():
+            kept.append(line)
+        else:
+            changed = True
+
+    if changed:
+        gitlog.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+    return changed
+
+
+def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
+    data = load_json(json_path)
+    dmp = ensure_dmp_shape(data).get("dmp", {})
+    datasets = dmp.get("dataset", []) or []
+
+    sensitive_rel_paths: list[str] = []
+    seen: set[str] = set()
+    for ds in datasets:
+        if not isinstance(ds, dict):
+            continue
+        if str(ds.get("sensitive_data", "")).strip().lower() != "yes":
+            continue
+        rel = _to_project_relative(_dataset_primary_path(ds))
+        if not rel or rel in seen:
+            continue
+        seen.add(rel)
+        sensitive_rel_paths.append(rel)
+
+    changed = False
+
+    if sensitive_rel_paths:
+        root_entries = [_gitignore_entry(p) for p in sensitive_rel_paths]
+        changed |= _upsert_gitignore_patterns(PROJECT_ROOT / ".gitignore", root_entries)
+
+        data_root = (PROJECT_ROOT / "data").resolve()
+        if (data_root / ".git").exists():
+            data_entries: list[str] = []
+            for rel in sensitive_rel_paths:
+                full = (PROJECT_ROOT / rel).resolve()
+                try:
+                    data_rel = full.relative_to(data_root).as_posix()
+                except Exception:
+                    continue
+                if not data_rel:
+                    continue
+                if full.exists() and full.is_dir():
+                    data_entries.append(f"/{data_rel.rstrip('/')}/")
+                else:
+                    data_entries.append(f"/{data_rel.rstrip('/')}")
+            changed |= _upsert_gitignore_patterns(data_root / ".gitignore", data_entries)
+
+        cfg = (
+            read_toml(
+                folder=str(PROJECT_ROOT),
+                json_filename=JSON_FILENAME,
+                tool_name="data_access",
+                toml_path=TOML_PATH,
+            )
+            or {}
+        )
+        existing = cfg.get("patterns", [])
+        if isinstance(existing, str):
+            existing_list = [existing]
+        elif isinstance(existing, list):
+            existing_list = [p for p in existing if isinstance(p, str) and p.strip()]
+        else:
+            existing_list = []
+        merged = list(existing_list)
+        existing_set = {p.strip() for p in existing_list if p.strip()}
+        for rel in sensitive_rel_paths:
+            if rel not in existing_set:
+                merged.append(rel)
+                existing_set.add(rel)
+        if merged != existing_list:
+            write_toml(
+                data={"patterns": merged},
+                folder=str(PROJECT_ROOT),
+                json_filename=JSON_FILENAME,
+                tool_name="data_access",
+                toml_path=TOML_PATH,
+            )
+            changed = True
+
+    changed |= _prune_data_gitlog_if_present()
+    return changed
 
 
 def datasets_to_json(
@@ -929,6 +1108,11 @@ def dataset_path_update(
     except Exception as e:
         print(f"Error: {e}")
 
+    try:
+        _ = _sync_sensitive_policy_artifacts_from_dmp(dmp_path)
+    except Exception as e:
+        print(f"Error syncing sensitive policy artifacts: {e}")
+
     if (
         change_flag
         and os.path.exists(".git")
@@ -995,6 +1179,11 @@ def main(
             dataset_to_readme(markdown_table, do_print=do_print)
     except Exception as e:
         print(f"Error: {e}")
+
+    try:
+        _ = _sync_sensitive_policy_artifacts_from_dmp(json_path)
+    except Exception as e:
+        print(f"Error syncing sensitive policy artifacts: {e}")
 
     if (
         change_flag
