@@ -173,7 +173,7 @@ def files_from_repokit_info(ds: dict) -> list[str]:
     for ext in _norm_list(ds.get("extension", [])):
         if not isinstance(ext, dict):
             continue
-        x = ext.get("repokit_info") or ext.get("x_dcas") or {}
+        x = ext.get("repokit_info") or {}
         for p in _norm_list(x.get("data_files", [])):
             if not isinstance(p, str):
                 continue
@@ -633,6 +633,3 @@ def realize_packaging_plan_parallel(plan: list[PackItem]) -> list[str]:
     return final_paths
 
 
-def files_from_x_dcas(ds: dict) -> list[str]:
-    """Backward-compatible alias for older imports."""
-    return files_from_repokit_info(ds)

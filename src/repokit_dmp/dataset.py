@@ -212,6 +212,15 @@ def get_data_files(cfg=None, ignore=None, recursive=False):
     return all_files, subdirs
 
 
+def _is_restricted_dataset_path(destination: str) -> bool:
+    """
+    Return True when destination is located under a sensitive/proprietary path.
+    """
+    rel = norm_rel_urlish(destination).replace("\\", "/").lstrip("./")
+    parts = [p.lower() for p in pathlib.PurePosixPath(rel).parts]
+    return any(p in {"sensitive", "proprietary"} for p in parts)
+
+
 def datasets_to_json(
     json_path=DEFAULT_DMP_PATH,
     entry=None,
@@ -437,7 +446,6 @@ def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
         # Dict-shaped extension
         if isinstance(exts, dict):
             exts["repokit_info"] = {}
-            exts.pop("x_dcas", None)
             return
 
         # List-shaped (or missing): normalize to list and enforce single {"repokit_info": {}}
@@ -451,7 +459,7 @@ def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
                 new_exts.append(ext)
                 continue
             # Drop any prior repokit_info in any known shape
-            if "repokit_info" in ext or "x_dcas" in ext or ext.get("name") in {"repokit_info", "x_dcas"} or ext.get("extension") in {"repokit_info", "x_dcas"}:
+            if "repokit_info" in ext or ext.get("name") == "repokit_info" or ext.get("extension") == "repokit_info":
                 continue
             new_exts.append(ext)
 
@@ -563,6 +571,10 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH, do_print: bool = True):
     name = os.path.basename(destination)
     data_type = data_type_from_path(destination)
 
+    is_restricted_path = _is_restricted_dataset_path(destination)
+    data_access = "closed" if is_restricted_path else ("open" if data_files else "closed")
+    license_ref = "" if is_restricted_path else LICENSE_LINKS.get(cookie.get("DATA_LICENSE"), "")
+
     # distribution (complete RDA-DMP shape with defaults; 1.2-compliant)
     distribution = {
         # "title": name,
@@ -570,13 +582,13 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH, do_print: bool = True):
         # "download_url": "",
         "format": [ext.strip(".") for ext in sorted(file_formats)],
         "byte_size": to_bytes_mb(total_size_mb),
-        "data_access": "open" if data_files else "closed",
+        "data_access": data_access,
         # "host": {"title": "Project repository", "url": ""},
         "available_until": "",
         # "description": "",
         "license": [
             {
-                "license_ref": LICENSE_LINKS.get(cookie.get("DATA_LICENSE"), ""),
+                "license_ref": license_ref,
                 "start_date": datetime.now().strftime("%Y-%m-%d"),
             }
         ],
@@ -596,7 +608,16 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH, do_print: bool = True):
 
     entry = make_dataset_entry(name, distribution, repokit_info_payload)
 
-    change_flag, json_path = datasets_to_json(json_path=json_path, entry=entry, do_print=do_print)
+    dist_update_fields = list(DEFAULT_UPDATE_DIST_FIELDS)
+    if is_restricted_path:
+        dist_update_fields.extend(["data_access", "license"])
+
+    change_flag, json_path = datasets_to_json(
+        json_path=json_path,
+        entry=entry,
+        update_distribution_fields=dist_update_fields,
+        do_print=do_print,
+    )
 
     return change_flag, json_path
 
@@ -631,6 +652,21 @@ def generate_dataset_table(
     for ds in datasets:
         x = get_repokit_info_payload(ds) or {}
         dist = (ds.get("distribution") or [{}])[0]
+        destination = dist.get("download_url") or dist.get("access_url") or x.get("destination")
+        is_restricted = _is_restricted_dataset_path(destination or "")
+
+        raw_access = (dist.get("data_access") or "").strip().lower()
+        data_access = "closed" if is_restricted else (raw_access or "closed")
+
+        licenses = dist.get("license") or []
+        if isinstance(licenses, dict):
+            licenses = [licenses]
+        if licenses and isinstance(licenses[0], dict):
+            license_ref = (licenses[0].get("license_ref") or "").strip()
+        else:
+            license_ref = ""
+        if is_restricted:
+            license_ref = ""
 
         # Build the row (unchanged fields kept as-is)
         # Normalize file formats to a list for safe rendering
@@ -645,9 +681,9 @@ def generate_dataset_table(
 
         row = {
             "data_name": ds.get("title"),
-            "destination": dist.get("download_url")
-            or dist.get("access_url")
-            or x.get("destination"),
+            "destination": destination,
+            "data_access": data_access,
+            "license_ref": license_ref,
             "created": ds.get("issued"),
             "lastest_change": ds.get("modified"),
             "hash": x.get("hash"),
@@ -694,6 +730,8 @@ def generate_dataset_table(
     standard_fields = {
         "data_name": "Name",
         "destination": "Location",
+        "data_access": "Access",
+        "license_ref": "License Ref",
         "created": "Created",
         "lastest_change": "Lastest Change",
         "hash": "Hash",
@@ -727,6 +765,8 @@ def generate_dataset_table(
         "data_name",
         "data_files",
         "destination",
+        "data_access",
+        "license_ref",
         "created",
         "lastest_change",
         "provided",

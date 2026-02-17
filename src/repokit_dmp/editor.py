@@ -656,7 +656,7 @@ def edit_object(
         if path == ("dmp",) and key in ("project", "dataset", "contributor"):
             continue
 
-        if key in {"repokit_info", "x_dcas"} and _is_under_dataset_extension(path):
+        if key == "repokit_info" and _is_under_dataset_extension(path):
             _show_readonly_json("repokit_info (read-only)", val, key=_key_for(*path, key, ns, "ro"))
             continue
 

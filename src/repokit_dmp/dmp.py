@@ -83,7 +83,7 @@ SCHEMA_URLS: dict[str, str] = {
 
 DEFAULT_DMP_PATH = Path("./dmp.json")
 REPOKIT_INFO_KEY = "repokit_info"
-LEGACY_REPOKIT_INFO_KEYS: tuple[str, ...] = ("x_dcas",)
+LEGACY_REPOKIT_INFO_KEYS: tuple[str, ...] = ()
 
 
 DEFAULT_DATASET_PATH, _ = toml_dataset_path()
@@ -1233,13 +1233,10 @@ def ensure_dmp_shape(data: dict[str, Any], **_: Any) -> dict[str, Any]:
         if not isinstance(dmp.get("project"), list):
             dmp["project"] = []
 
-        # migrate legacy dataset.repokit_info
+        # migrate legacy top-level dataset.repokit_info
         for ds in dmp.get("dataset", []):
-            if isinstance(ds.get("x_dcas"), dict):
-                set_repokit_info_payload(ds, ds.pop("x_dcas"))
-            legacy = get_extension_payload(ds, "x_dcas")
-            if isinstance(legacy, dict):
-                set_repokit_info_payload(ds, legacy)
+            if isinstance(ds.get("repokit_info"), dict):
+                set_repokit_info_payload(ds, ds.pop("repokit_info"))
 
         return {"dmp": dmp}
 
@@ -1309,13 +1306,8 @@ def normalize_datasets_in_place(data: dict[str, Any], schema: dict[str, Any] | N
 
     for ds in datasets:
         # legacy migration
-        if isinstance(ds.get("x_dcas"), dict):
-            set_repokit_info_payload(ds, ds.pop("x_dcas"))
         if isinstance(ds.get("repokit_info"), dict):
             set_repokit_info_payload(ds, ds.pop("repokit_info"))
-        legacy = get_extension_payload(ds, "x_dcas")
-        if isinstance(legacy, dict):
-            set_repokit_info_payload(ds, legacy)
 
         # dataset defaults (central)
         apply_defaults_in_place(ds, templates["dataset"])
