@@ -221,6 +221,18 @@ def _is_restricted_dataset_path(destination: str) -> bool:
     return any(p in {"sensitive", "proprietary"} for p in parts)
 
 
+def _pseudonymize_data_files(data_files: Iterable[str]) -> list[str]:
+    """
+    Replace full filenames with deterministic pseudonyms while preserving file suffix.
+    Example: file_0001.csv, file_0002.parquet
+    """
+    pseudo_files: list[str] = []
+    for idx, path in enumerate(sorted(data_files), start=1):
+        suffix = pathlib.Path(path).suffix.lower()
+        pseudo_files.append(f"file_{idx:04d}{suffix}")
+    return pseudo_files
+
+
 def datasets_to_json(
     json_path=DEFAULT_DMP_PATH,
     entry=None,
@@ -574,6 +586,9 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH, do_print: bool = True):
     is_restricted_path = _is_restricted_dataset_path(destination)
     data_access = "closed" if is_restricted_path else ("open" if data_files else "closed")
     license_ref = "" if is_restricted_path else LICENSE_LINKS.get(cookie.get("DATA_LICENSE"), "")
+    repokit_data_files = (
+        _pseudonymize_data_files(data_files) if is_restricted_path else list(data_files)
+    )
 
     # distribution (complete RDA-DMP shape with defaults; 1.2-compliant)
     distribution = {
@@ -601,20 +616,25 @@ def dataset(destination, json_path=DEFAULT_DMP_PATH, do_print: bool = True):
         number_of_files=number_of_files,
         total_size_mb=int(round(total_size_mb)),
         file_formats=sorted(list(file_formats)),
-        data_files=data_files,
+        data_files=repokit_data_files,
         data_size_mb=individual_sizes_mb,
         hash_value=get_hash(destination),
     )
 
     entry = make_dataset_entry(name, distribution, repokit_info_payload)
+    if is_restricted_path:
+        entry["sensitive_data"] = "yes"
 
+    update_fields = list(DEFAULT_UPDATE_FIELDS)
     dist_update_fields = list(DEFAULT_UPDATE_DIST_FIELDS)
     if is_restricted_path:
+        update_fields.append("sensitive_data")
         dist_update_fields.extend(["data_access", "license"])
 
     change_flag, json_path = datasets_to_json(
         json_path=json_path,
         entry=entry,
+        update_fields=update_fields,
         update_distribution_fields=dist_update_fields,
         do_print=do_print,
     )

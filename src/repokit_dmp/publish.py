@@ -168,6 +168,33 @@ def files_from_repokit_info(ds: dict) -> list[str]:
     """
     Authoritative list from extension[].repokit_info.data_files. Normalize/resolve paths.
     """
+    # Hard gate: never resolve/upload files for restricted datasets.
+    if _has_personal_or_sensitive(ds):
+        return []
+
+    restricted_markers = {"sensitive", "proprietary"}
+
+    def _has_restricted_marker(path_like: str) -> bool:
+        parts = [p.lower() for p in Path(path_like.replace("\\", "/").lstrip("./")).parts]
+        return any(p in restricted_markers for p in parts)
+
+    # Secondary gate from path markers (defense in depth).
+    for dist in _norm_list(ds.get("distribution", [])):
+        if not isinstance(dist, dict):
+            continue
+        for key in ("access_url", "download_url"):
+            val = dist.get(key)
+            if isinstance(val, str) and val.strip() and _has_restricted_marker(val):
+                return []
+
+    for ext in _norm_list(ds.get("extension", [])):
+        if not isinstance(ext, dict):
+            continue
+        x = ext.get("repokit_info") or {}
+        dest = x.get("destination")
+        if isinstance(dest, str) and dest.strip() and _has_restricted_marker(dest):
+            return []
+
     out: list[str] = []
 
     for ext in _norm_list(ds.get("extension", [])):

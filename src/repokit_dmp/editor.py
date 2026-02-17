@@ -10,6 +10,7 @@ Now with autosave: changes are saved to disk automatically whenever fields chang
 import hashlib
 import json
 import os
+import re
 import sys
 from copy import deepcopy
 from datetime import date, datetime
@@ -60,11 +61,13 @@ try:
         ensure_dmp_shape,
         ensure_required_by_schema,
         fetch_schema,
+        get_repokit_info_payload,
         normalize_datasets_in_place,
         normalize_root_in_place,
         now_iso_minute,
         reorder_dmp_keys,
         repair_empty_enums,
+        set_repokit_info_payload,
         today_iso,
         update_cookiecutter_from_dmp,
     )
@@ -99,11 +102,13 @@ except ImportError:
         ensure_dmp_shape,
         ensure_required_by_schema,
         fetch_schema,
+        get_repokit_info_payload,
         normalize_datasets_in_place,
         normalize_root_in_place,
         now_iso_minute,
         reorder_dmp_keys,
         repair_empty_enums,
+        set_repokit_info_payload,
         today_iso,
         update_cookiecutter_from_dmp,
     )
@@ -132,6 +137,115 @@ def _has_privacy_flags(ds: dict) -> bool:
         str(ds.get("personal_data", "")).lower() == "yes"
         or str(ds.get("sensitive_data", "")).lower() == "yes"
     )
+
+
+def _is_yes(v: Any) -> bool:
+    return str(v or "").strip().lower() == "yes"
+
+
+def _is_restricted_dataset(ds: dict) -> bool:
+    restricted_markers = {"sensitive", "proprietary"}
+
+    def _has_marker(path_like: str) -> bool:
+        parts = [p.lower() for p in Path(path_like.replace("\\", "/").lstrip("./")).parts]
+        return any(p in restricted_markers for p in parts)
+
+    for dist in ds.get("distribution", []) or []:
+        if not isinstance(dist, dict):
+            continue
+        for key in ("access_url", "download_url"):
+            val = dist.get(key)
+            if isinstance(val, str) and val.strip() and _has_marker(val):
+                return True
+
+    x = get_repokit_info_payload(ds) or {}
+    dest = x.get("destination")
+    return isinstance(dest, str) and bool(dest.strip()) and _has_marker(dest)
+
+
+def _enforce_personal_implies_sensitive(ds: dict) -> bool:
+    if _is_yes(ds.get("personal_data")) and not _is_yes(ds.get("sensitive_data")):
+        ds["sensitive_data"] = "yes"
+        return True
+    return False
+
+
+def _enforce_restricted_sensitive_lock(ds: dict) -> bool:
+    if _is_restricted_dataset(ds) and not _is_yes(ds.get("sensitive_data")):
+        ds["sensitive_data"] = "yes"
+        return True
+    return False
+
+
+def _refresh_unblurred_data_files_for_non_sensitive(ds: dict) -> bool:
+    """
+    If dataset is non-sensitive, rebuild repokit_info.data_files from access path
+    when current payload appears redacted/blurred.
+    """
+    if _has_privacy_flags(ds):
+        return False
+
+    x = get_repokit_info_payload(ds) or {}
+    current_files = x.get("data_files") or []
+    if not isinstance(current_files, list):
+        return False
+
+    # Detect current redacted forms:
+    # - file_0001.ext
+    # - p.........25.csv style masking
+    redacted_re = re.compile(r"^file_\d{4}(\.[A-Za-z0-9]+)?$")
+    blurred_re = re.compile(r"^[^/\\]\.{3,}[^/\\]*$")
+    looks_redacted = all(
+        isinstance(f, str) and (redacted_re.match(f) or blurred_re.match(Path(f).name))
+        for f in current_files
+    )
+    if not current_files or not looks_redacted:
+        return False
+
+    dists = ds.get("distribution") or []
+    access_url = ""
+    if isinstance(dists, list):
+        for dist in dists:
+            if isinstance(dist, dict):
+                access_url = (dist.get("access_url") or "").strip()
+                if access_url:
+                    break
+    if not access_url:
+        access_url = str(x.get("destination") or "").strip()
+    if not access_url:
+        return False
+
+    base = Path(access_url)
+    if not base.is_absolute():
+        base = (PROJECT_ROOT / base).resolve()
+    if not base.exists():
+        return False
+
+    real_files: list[str] = []
+    if base.is_file():
+        real_files = [base]
+    else:
+        for root, _dirs, files in os.walk(base):
+            for fn in files:
+                if fn.startswith("."):
+                    continue
+                real_files.append(Path(root) / fn)
+
+    if not real_files:
+        return False
+
+    normalized: list[str] = []
+    for fp in sorted(real_files):
+        try:
+            normalized.append(fp.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix())
+        except Exception:
+            normalized.append(fp.resolve().as_posix())
+
+    if normalized != current_files:
+        x["data_files"] = normalized
+        set_repokit_info_payload(ds, x)
+        return True
+    return False
 
 
 def _normalize_chosen_path(chosen: str) -> str:
@@ -1197,6 +1311,8 @@ def draw_datasets_section(dmp_root: dict) -> None:
             with cols[4]:
                 access_url = _first_access_url(ds)
                 btn_label = "Change Data Path" if access_url else "Add Data Path"
+                if _is_restricted_dataset(ds):
+                    st.caption("Sensitive flag is locked to 'yes' for datasets under /sensitive or /proprietary.")
 
                 subcol_path, subcol_btn = st.columns([3, 1])
 
@@ -1291,9 +1407,12 @@ def draw_datasets_section(dmp_root: dict) -> None:
                 is_reused_changed = True
 
             changed = False
+            changed |= _enforce_personal_implies_sensitive(datasets[i])
+            changed |= _enforce_restricted_sensitive_lock(datasets[i])
             changed |= _enforce_privacy_access(datasets[i])
             changed |= _normalize_license_by_access(datasets[i])
             changed |= _ensure_open_has_license(datasets[i])
+            changed |= _refresh_unblurred_data_files_for_non_sensitive(datasets[i])
 
     # Rerun if is_reused changed to update button states
     if is_reused_changed:
