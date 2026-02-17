@@ -41,6 +41,7 @@ try:
         load_from_env,
         save_to_env,
         PROJECT_ROOT,
+        read_toml,
         write_toml,
         toml_dataset_path,
         JSON_FILENAME,
@@ -82,6 +83,7 @@ except ImportError:
         load_from_env,
         save_to_env,
         PROJECT_ROOT,
+        read_toml,
         write_toml,
         toml_dataset_path,
         JSON_FILENAME,
@@ -245,6 +247,261 @@ def _refresh_unblurred_data_files_for_non_sensitive(ds: dict) -> bool:
         x["data_files"] = normalized
         set_repokit_info_payload(ds, x)
         return True
+    return False
+
+
+def _refresh_blurred_data_files_for_sensitive(ds: dict) -> bool:
+    """
+    If dataset is sensitive/personal, ensure repokit_info.data_files is pseudonymized.
+    Uses deterministic file_0001.ext style to match dataset pipeline behavior.
+    """
+    if not _has_privacy_flags(ds):
+        return False
+
+    x = get_repokit_info_payload(ds) or {}
+    current_files = x.get("data_files") or []
+    if not isinstance(current_files, list):
+        return False
+
+    redacted_re = re.compile(r"^file_\d{4}(\.[A-Za-z0-9]+)?$")
+    blurred_re = re.compile(r"^[^/\\]\.{3,}[^/\\]*$")
+
+    def _is_redacted_name(item: Any) -> bool:
+        if not isinstance(item, str):
+            return False
+        name = Path(item).name
+        return bool(redacted_re.match(name) or blurred_re.match(name))
+
+    # Build source list from current names if they are real; otherwise from filesystem path.
+    source_files: list[str] = []
+    if current_files and not all(_is_redacted_name(f) for f in current_files):
+        source_files = [str(f) for f in current_files if isinstance(f, str) and f.strip()]
+    else:
+        dists = ds.get("distribution") or []
+        access_url = ""
+        if isinstance(dists, list):
+            for dist in dists:
+                if isinstance(dist, dict):
+                    access_url = (dist.get("access_url") or "").strip()
+                    if access_url:
+                        break
+        if not access_url:
+            access_url = str(x.get("destination") or "").strip()
+        if not access_url:
+            return False
+        base = Path(access_url)
+        if not base.is_absolute():
+            base = (PROJECT_ROOT / base).resolve()
+        if not base.exists():
+            return False
+        if base.is_file():
+            source_files = [base.as_posix()]
+        else:
+            for root, _dirs, files in os.walk(base):
+                for fn in files:
+                    if fn.startswith("."):
+                        continue
+                    source_files.append((Path(root) / fn).as_posix())
+
+    if not source_files:
+        return False
+
+    pseudo: list[str] = []
+    for idx, p in enumerate(sorted(source_files), start=1):
+        suffix = Path(p).suffix.lower()
+        pseudo.append(f"file_{idx:04d}{suffix}")
+
+    if pseudo != current_files:
+        x["data_files"] = pseudo
+        set_repokit_info_payload(ds, x)
+        return True
+    return False
+
+
+def _dataset_primary_path(ds: dict) -> str:
+    dists = ds.get("distribution") or []
+    if isinstance(dists, list):
+        for dist in dists:
+            if not isinstance(dist, dict):
+                continue
+            for key in ("access_url", "download_url"):
+                val = dist.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+    x = get_repokit_info_payload(ds) or {}
+    dest = x.get("destination")
+    return dest.strip() if isinstance(dest, str) else ""
+
+
+def _to_project_relative(path_value: str) -> str | None:
+    raw = (path_value or "").strip()
+    if not raw:
+        return None
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", raw):
+        return None
+    p = Path(raw)
+    if p.is_absolute():
+        try:
+            rel = p.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+        except Exception:
+            return None
+    else:
+        rel = p.as_posix()
+    rel = rel.lstrip("./").strip()
+    return rel or None
+
+
+def _gitignore_entry(rel_path: str) -> str:
+    p = PROJECT_ROOT / rel_path
+    if p.exists() and p.is_dir():
+        return f"/{rel_path.rstrip('/')}/"
+    return f"/{rel_path.rstrip('/')}"
+
+
+def _upsert_gitignore_patterns(gitignore_path: Path, entries: list[str]) -> bool:
+    if not entries:
+        return False
+    existing_lines: list[str] = []
+    if gitignore_path.exists():
+        try:
+            existing_lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            existing_lines = []
+    existing_set = {ln.strip() for ln in existing_lines if ln.strip()}
+    to_add = [e for e in entries if e.strip() and e.strip() not in existing_set]
+    if not to_add:
+        return False
+    out = list(existing_lines)
+    if out and out[-1].strip() != "":
+        out.append("")
+    out.extend(to_add)
+    gitignore_path.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+    return True
+
+
+def _prune_data_gitlog_if_present() -> bool:
+    """
+    Keep /data/.gitlog usable as a current-facing artifact by removing stale
+    git --stat path lines that no longer exist in the /data repo.
+    """
+    data_root = (PROJECT_ROOT / "data").resolve()
+    gitlog = data_root / ".gitlog"
+    if not gitlog.exists():
+        return False
+
+    try:
+        lines = gitlog.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return False
+
+    changed = False
+    kept: list[str] = []
+    stat_line_re = re.compile(r"^\s*(?P<path>[^|]+?)\s+\|\s+\d+")
+
+    for line in lines:
+        m = stat_line_re.match(line)
+        if not m:
+            kept.append(line)
+            continue
+
+        rel = m.group("path").strip().replace("\\", "/")
+        if not rel:
+            kept.append(line)
+            continue
+
+        # Skip complex rename diffstat fragments like "{old => new}" safely.
+        if "{" in rel or "}" in rel:
+            kept.append(line)
+            continue
+
+        fs_path = (data_root / Path(rel)).resolve()
+        if fs_path.exists():
+            kept.append(line)
+        else:
+            changed = True
+
+    if changed:
+        gitlog.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+    return changed
+
+
+def _sync_sensitive_policy_artifacts(datasets: list[dict[str, Any]]) -> bool:
+    sensitive_rel_paths: list[str] = []
+    seen: set[str] = set()
+    for ds in datasets:
+        if not isinstance(ds, dict):
+            continue
+        if not _is_yes(ds.get("sensitive_data")):
+            continue
+        rel = _to_project_relative(_dataset_primary_path(ds))
+        if not rel or rel in seen:
+            continue
+        seen.add(rel)
+        sensitive_rel_paths.append(rel)
+
+    if not sensitive_rel_paths:
+        return False
+
+    changed = False
+
+    # 1) Root .gitignore
+    root_entries = [_gitignore_entry(p) for p in sensitive_rel_paths]
+    changed |= _upsert_gitignore_patterns(PROJECT_ROOT / ".gitignore", root_entries)
+
+    # 2) /data .gitignore if /data is its own git repo
+    data_root = (PROJECT_ROOT / "data").resolve()
+    if (data_root / ".git").exists():
+        data_entries: list[str] = []
+        for rel in sensitive_rel_paths:
+            full = (PROJECT_ROOT / rel).resolve()
+            try:
+                data_rel = full.relative_to(data_root).as_posix()
+            except Exception:
+                continue
+            if not data_rel:
+                continue
+            if full.exists() and full.is_dir():
+                data_entries.append(f"/{data_rel.rstrip('/')}/")
+            else:
+                data_entries.append(f"/{data_rel.rstrip('/')}")
+        changed |= _upsert_gitignore_patterns(data_root / ".gitignore", data_entries)
+
+    # 3) pyproject [tool.data_access].patterns
+    cfg = (
+        read_toml(
+            folder=str(PROJECT_ROOT),
+            json_filename=JSON_FILENAME,
+            tool_name="data_access",
+            toml_path=TOML_PATH,
+        )
+        or {}
+    )
+    existing = cfg.get("patterns", [])
+    if isinstance(existing, str):
+        existing_list = [existing]
+    elif isinstance(existing, list):
+        existing_list = [p for p in existing if isinstance(p, str) and p.strip()]
+    else:
+        existing_list = []
+    merged = list(existing_list)
+    existing_set = {p.strip() for p in existing_list if p.strip()}
+    for rel in sensitive_rel_paths:
+        if rel not in existing_set:
+            merged.append(rel)
+            existing_set.add(rel)
+    if merged != existing_list:
+        write_toml(
+            data={"patterns": merged},
+            folder=str(PROJECT_ROOT),
+            json_filename=JSON_FILENAME,
+            tool_name="data_access",
+            toml_path=TOML_PATH,
+        )
+        changed = True
+
+    changed |= _prune_data_gitlog_if_present()
+
+    return changed
     return False
 
 
@@ -803,7 +1060,44 @@ def edit_object(
                 )
 
         else:
-            obj[key] = edit_primitive(key, val, path=(*path, key), ns=ns)
+            if key == "sensitive_data" and _is_dataset_path(path):
+                field_path = (*path, key)
+                restricted = _is_restricted_dataset(obj)
+                mode, options = _enum_info_for_path(field_path)
+                if mode == "single" and options:
+                    sel_key = _key_for(*field_path, ns, "enum")
+                    current = "" if val is None else str(val)
+                    options_ui = list(options)
+                    custom_label = None
+                    if current not in (None, "") and current not in options_ui:
+                        custom_label = f"(custom) {current}"
+                        options_ui = [custom_label] + options_ui
+                        default_index = 0
+                    else:
+                        try:
+                            default_index = options_ui.index(current)
+                        except Exception:
+                            default_index = 0
+                    selected = st.selectbox(
+                        key,
+                        options_ui,
+                        index=default_index,
+                        key=sel_key,
+                        disabled=restricted,
+                        format_func=lambda opt: _enum_label_for(
+                            field_path, opt if opt != custom_label else current
+                        ),
+                    )
+                    obj[key] = current if (custom_label and selected == custom_label) else selected
+                else:
+                    obj[key] = edit_primitive(key, val, path=field_path, ns=ns)
+
+                if restricted:
+                    st.caption(
+                        "Sensitive flag is locked to 'yes' for datasets under /sensitive or /proprietary."
+                    )
+            else:
+                obj[key] = edit_primitive(key, val, path=(*path, key), ns=ns)
 
         if allow_remove_keys and st.button(
             f"Remove key: {key}", key=_key_for(*path, key, ns, "del")
@@ -1311,9 +1605,6 @@ def draw_datasets_section(dmp_root: dict) -> None:
             with cols[4]:
                 access_url = _first_access_url(ds)
                 btn_label = "Change Data Path" if access_url else "Add Data Path"
-                if _is_restricted_dataset(ds):
-                    st.caption("Sensitive flag is locked to 'yes' for datasets under /sensitive or /proprietary.")
-
                 subcol_path, subcol_btn = st.columns([3, 1])
 
                 with subcol_path:
@@ -1412,11 +1703,14 @@ def draw_datasets_section(dmp_root: dict) -> None:
             changed |= _enforce_privacy_access(datasets[i])
             changed |= _normalize_license_by_access(datasets[i])
             changed |= _ensure_open_has_license(datasets[i])
+            changed |= _refresh_blurred_data_files_for_sensitive(datasets[i])
             changed |= _refresh_unblurred_data_files_for_non_sensitive(datasets[i])
 
     # Rerun if is_reused changed to update button states
     if is_reused_changed:
         st.rerun()
+
+    _sync_sensitive_policy_artifacts(datasets)
 
 
 def _is_reused(ds: dict) -> bool:
