@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
@@ -298,41 +299,42 @@ def _upsert_gitignore_patterns(gitignore_path: pathlib.Path, entries: list[str])
     return True
 
 
-def _prune_data_gitlog_if_present() -> bool:
+def _upsert_agent_ignore_patterns(entries: list[str]) -> bool:
+    changed = False
+    for name in (
+        ".codexignore",
+        ".claudeignore",
+        ".cursorignore",
+        ".opencodeignore",
+        ".copilotignore",
+    ):
+        p = PROJECT_ROOT / name
+        if p.exists():
+            changed |= _upsert_gitignore_patterns(p, entries)
+    return changed
+
+
+def _regenerate_data_gitlog_if_present() -> bool:
     data_root = (PROJECT_ROOT / "data").resolve()
+    if not (data_root / ".git").exists():
+        return False
     gitlog = data_root / ".gitlog"
     if not gitlog.exists():
         return False
 
     try:
-        lines = gitlog.read_text(encoding="utf-8").splitlines()
+        with gitlog.open("w", encoding="utf-8", newline="\n") as fh:
+            proc = subprocess.run(
+                ["git", "log", "--all", "--pretty=fuller", "--stat"],
+                cwd=str(data_root),
+                stdout=fh,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                text=True,
+            )
+        return proc.returncode == 0
     except Exception:
         return False
-
-    changed = False
-    kept: list[str] = []
-    stat_line_re = re.compile(r"^\s*(?P<path>[^|]+?)\s+\|\s+\d+")
-
-    for line in lines:
-        m = stat_line_re.match(line)
-        if not m:
-            kept.append(line)
-            continue
-
-        rel = m.group("path").strip().replace("\\", "/")
-        if not rel or "{" in rel or "}" in rel:
-            kept.append(line)
-            continue
-
-        fs_path = (data_root / pathlib.Path(rel)).resolve()
-        if fs_path.exists():
-            kept.append(line)
-        else:
-            changed = True
-
-    if changed:
-        gitlog.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
-    return changed
 
 
 def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
@@ -358,6 +360,7 @@ def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
     if sensitive_rel_paths:
         root_entries = [_gitignore_entry(p) for p in sensitive_rel_paths]
         changed |= _upsert_gitignore_patterns(PROJECT_ROOT / ".gitignore", root_entries)
+        changed |= _upsert_agent_ignore_patterns(root_entries)
 
         data_root = (PROJECT_ROOT / "data").resolve()
         if (data_root / ".git").exists():
@@ -380,7 +383,7 @@ def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
             read_toml(
                 folder=str(PROJECT_ROOT),
                 json_filename=JSON_FILENAME,
-                tool_name="data_access",
+                tool_name="data_policy",
                 toml_path=TOML_PATH,
             )
             or {}
@@ -403,12 +406,12 @@ def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
                 data={"patterns": merged},
                 folder=str(PROJECT_ROOT),
                 json_filename=JSON_FILENAME,
-                tool_name="data_access",
+                tool_name="data_policy",
                 toml_path=TOML_PATH,
             )
             changed = True
 
-    changed |= _prune_data_gitlog_if_present()
+    changed |= _regenerate_data_gitlog_if_present()
     return changed
 
 
