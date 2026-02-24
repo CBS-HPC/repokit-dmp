@@ -2270,8 +2270,9 @@ def _autosave_if_changed(force_write: bool = False) -> None:
         # Keep cookiecutter.json in sync with the autosaved DMP
         try:
             update_cookiecutter_from_dmp(dmp_path=base_path)
-        except Exception as e:
-            st.session_state["__autosave_feedback__"] += f" (cookiecutter sync failed: {e})"
+        except Exception:
+            # Do not surface cookiecutter sync failures in the autosave status line.
+            pass
 
     except Exception as e:
         st.session_state["__autosave_feedback__"] = f"⚠️ Autosave failed: {e}"
@@ -2366,7 +2367,7 @@ def _bootstrap_dmp_from_selected_parent(default_path: Path) -> bool:
 
     try:
         dataset_main(
-            dmp_path=str(default_path),
+            dmp_path=default_path,
             do_print=False,
             git_msg="Initialize DMP from selected parent data path",
             default_dataset_path=default_dataset_path,
@@ -2378,6 +2379,43 @@ def _bootstrap_dmp_from_selected_parent(default_path: Path) -> bool:
     except Exception as e:
         st.warning(f"Failed initial dataset bootstrap: {e}")
         return False
+
+
+def _ensure_data_policy_config() -> None:
+    """
+    Ensure pyproject.toml has [tool.data_policy] with default description
+    and an explicit patterns list. If section is missing, create it as empty.
+    """
+    cfg = (
+        read_toml(
+            folder=str(PROJECT_ROOT),
+            json_filename=JSON_FILENAME,
+            tool_name="data_policy",
+            toml_path=TOML_PATH,
+        )
+        or {}
+    )
+
+    payload = {
+        "tool-description": cfg.get("tool-description")
+        or (
+            "Agent data-access policy: paths with sensitive/proprietary data "
+            "that must be handled with restricted access and synced to agent ignore files."
+        ),
+        "patterns": cfg.get("patterns", []),
+    }
+
+    # Keep explicit empty list for first-time standalone generation.
+    if not isinstance(payload["patterns"], list):
+        payload["patterns"] = []
+
+    write_toml(
+        data=payload,
+        folder=str(PROJECT_ROOT),
+        json_filename=JSON_FILENAME,
+        tool_name="data_policy",
+        toml_path=TOML_PATH,
+    )
 
 
 def _resolve_data_parent_path() -> Path:
@@ -2423,6 +2461,7 @@ def main() -> None:
 
     global PROJECT_ROOT, DATA_PARENT_PATH
     PROJECT_ROOT = _repokit_common.PROJECT_ROOT
+    _ensure_data_policy_config()
     default_path = find_default_dmp_path()
     _bootstrap_dmp_from_selected_parent(default_path)
     DATA_PARENT_PATH = _resolve_data_parent_path()
