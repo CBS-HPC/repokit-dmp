@@ -42,6 +42,9 @@ dev = [
   "mypy>=1.10",
   "uv",
 ]
+editor = [
+  "wxPython>=4.2; platform_system == 'Windows' or platform_system == 'Darwin'",
+]
 [project.scripts]
 repokit-dmp = "repokit_dmp.cli:main"
 set-dataset = "repokit_dmp.dataset:main"

@@ -18,7 +18,10 @@ from datetime import date, datetime
 from hashlib import sha256  # <- for autosave hashing
 from pathlib import Path
 from typing import Any
-import wx
+try:
+    import wx
+except Exception:
+    wx = None
 
 import requests
 import streamlit as st
@@ -119,7 +122,7 @@ except ImportError:
     # from repokit_dmp.publish import *
     from repokit_dmp.zenodo import streamlit_publish_to_zenodo
 
-_, DATA_PARENT_PATH = toml_dataset_path()
+DATA_PARENT_PATH = Path("data")
 # ---------------------------
 # Repository site choices (labels come from format_func)
 # ---------------------------
@@ -532,6 +535,17 @@ def _normalize_chosen_path(chosen: str) -> str:
     except ValueError:
         # Not under PROJECT_ROOT → keep absolute
         return p.resolve().as_posix()
+
+
+def _as_dataset_pattern(path_value: str) -> str:
+    s = (path_value or "").strip()
+    if not s:
+        return "data/*"
+    s = s.replace("\\", "/")
+    if s.endswith("/*"):
+        return s
+    s = s.rstrip("/")
+    return f"{s}/*"
 
 
 def _enforce_privacy_access(ds: dict) -> bool:
@@ -1116,14 +1130,35 @@ def edit_any(value: Any, path: tuple, ns: str | None = None) -> Any:
 
 
 def find_default_dmp_path(start: Path | None = None) -> Path:
+    launch_root_raw = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
+    launch_root = Path(launch_root_raw).resolve() if launch_root_raw else None
+
     start = start or Path(__file__).resolve().parent
     candidates = ["dmp.json"]
-    for base in [start, *start.parents]:
+
+    base_candidates: list[Path] = []
+    if launch_root is not None:
+        base_candidates.append(launch_root)
+    base_candidates.extend([Path.cwd(), *Path.cwd().parents, start, *start.parents])
+
+    seen: set[str] = set()
+    deduped_bases: list[Path] = []
+    for b in base_candidates:
+        key = str(b.resolve()) if b.exists() else str(b)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_bases.append(b)
+
+    for base in deduped_bases:
         for name in candidates:
             p = base / name
             if p.exists():
                 return p
-    return Path("./dmp.json") if not Path(DEFAULT_DMP_PATH).exists() else Path(DEFAULT_DMP_PATH)
+
+    if launch_root is not None:
+        return launch_root / "dmp.json"
+    return (PROJECT_ROOT / "dmp.json").resolve()
 
 
 def draw_root_section(dmp_root: dict[str, Any]) -> None:
@@ -1240,47 +1275,71 @@ def _browse_for_directory(
     else:
         start_str = os.getcwd()
 
-    # Create a minimal wx App just for the dialog
-    app = wx.App(False)
-
+    # Compute default directory / file
     if dir_only:
-        # If a file was passed, start from its directory
         default_dir = start_str
         if os.path.isfile(default_dir):
             default_dir = os.path.dirname(default_dir)
-
-        dlg = wx.DirDialog(
-            None,
-            message=title,
-            defaultPath=default_dir,
-            style=wx.DD_DEFAULT_STYLE | wx.DD_NEW_DIR_BUTTON,
-        )
+        default_file = ""
     else:
-        # File chooser: split into dir + file if a file path is given
         if os.path.isfile(start_str):
             default_dir, default_file = os.path.split(start_str)
         else:
             default_dir, default_file = (start_str, "")
 
-        dlg = wx.FileDialog(
-            None,
-            message=title,
-            defaultDir=default_dir,
-            defaultFile=default_file,
-            wildcard="*.*",
-            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
-        )
-
-    try:
-        if dlg.ShowModal() == wx.ID_OK:
-            selected_path = dlg.GetPath()
+    # Preferred: native chooser via wxPython
+    if wx is not None:
+        app = wx.App(False)
+        if dir_only:
+            dlg = wx.DirDialog(
+                None,
+                message=title,
+                defaultPath=default_dir,
+                style=wx.DD_DEFAULT_STYLE | wx.DD_NEW_DIR_BUTTON,
+            )
         else:
-            selected_path = None
-    finally:
-        dlg.Destroy()
-        app.Destroy()
+            dlg = wx.FileDialog(
+                None,
+                message=title,
+                defaultDir=default_dir,
+                defaultFile=default_file,
+                wildcard="*.*",
+                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+            )
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                return dlg.GetPath()
+            return None
+        finally:
+            dlg.Destroy()
+            app.Destroy()
 
-    return selected_path
+    # Fallback: tkinter (standard library)
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        try:
+            if dir_only:
+                selected = filedialog.askdirectory(initialdir=default_dir, title=title)
+            else:
+                selected = filedialog.askopenfilename(
+                    initialdir=default_dir,
+                    initialfile=default_file,
+                    title=title,
+                )
+            return selected or None
+        finally:
+            root.destroy()
+    except Exception:
+        st.warning(
+            "Path picker unavailable (missing wxPython/tkinter GUI backend). "
+            "Install wxPython or set paths directly in dmp.json."
+        )
+        return None
 
 
 def _reload_dmp_from_disk(
@@ -1373,9 +1432,10 @@ def draw_datasets_section(dmp_root: dict) -> None:
         with c_label:
             st.caption("Parent Data Path")
         with c_input:
+            display_pattern = _as_dataset_pattern(parent_data_path)
             st.text_input(
                 "Parent Data Path",
-                value=parent_data_path,
+                value=display_pattern,
                 key=f"parent_data_path_display_v{widget_version}",
                 disabled=True,
                 label_visibility="collapsed",
@@ -1396,6 +1456,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
             if chosen:
                 chosen_norm = _normalize_chosen_path(chosen)
+                chosen_pattern = _as_dataset_pattern(chosen_norm)
 
                 # 1) Update in-memory parent path used by the UI
                 st.session_state["__parent_data_path__"] = chosen_norm
@@ -1410,7 +1471,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
                     # 3) Persist to TOML
                     write_toml(
-                        data={"patterns": chosen_norm},
+                        data={"patterns": chosen_pattern},
                         folder=str(PROJECT_ROOT),
                         json_filename=JSON_FILENAME,
                         tool_name="datasets",
@@ -1422,7 +1483,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
                         dataset_main(
                             dmp_path=save_path,
                             do_print=False,
-                            git_msg=f"Setting parent dataset path to {chosen_norm}",
+                            git_msg=f"Setting parent dataset path to {chosen_pattern}",
                         )
                     except Exception as e:
                         st.warning(f"dataset_main failed: {e}")
@@ -2305,6 +2366,17 @@ def _ensure_data_initialized(default_path: Path) -> None:
 
 def main() -> None:
     ensure_project_root()
+    # Refresh runtime globals after Streamlit process bootstrap.
+    import repokit_common as _repokit_common
+
+    global PROJECT_ROOT, DATA_PARENT_PATH
+    PROJECT_ROOT = _repokit_common.PROJECT_ROOT
+    dataset_cfg, _ = toml_dataset_path()
+    parent = Path(dataset_cfg["parent_path"])
+    if not parent.is_absolute():
+        parent = (PROJECT_ROOT / parent).resolve()
+    DATA_PARENT_PATH = parent
+
     st.set_page_config(page_title=f"RDA-DMP {SCHEMA_VERSION} JSON Editor", layout="wide")
     st.title(f"RDA-DMP {SCHEMA_VERSION} JSON Editor")
 
@@ -2456,7 +2528,9 @@ def main() -> None:
 
 
 def cli() -> None:
-    ensure_project_root()
+    launch_root = Path.cwd().resolve()
+    os.environ["REPOKIT_DMP_PROJECT_ROOT"] = str(launch_root)
+    ensure_project_root(launch_root)
     app_path = Path(__file__).resolve()
     ssh_mode = len(sys.argv) > 1 and sys.argv[1] == "ssh"
     if ssh_mode:
