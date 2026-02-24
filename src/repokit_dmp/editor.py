@@ -122,7 +122,7 @@ except ImportError:
     # from repokit_dmp.publish import *
     from repokit_dmp.zenodo import streamlit_publish_to_zenodo
 
-DATA_PARENT_PATH = Path("data")
+DATA_PARENT_PATH = Path(".")
 # ---------------------------
 # Repository site choices (labels come from format_func)
 # ---------------------------
@@ -535,17 +535,6 @@ def _normalize_chosen_path(chosen: str) -> str:
     except ValueError:
         # Not under PROJECT_ROOT → keep absolute
         return p.resolve().as_posix()
-
-
-def _as_dataset_pattern(path_value: str) -> str:
-    s = (path_value or "").strip()
-    if not s:
-        return "data/*"
-    s = s.replace("\\", "/")
-    if s.endswith("/*"):
-        return s
-    s = s.rstrip("/")
-    return f"{s}/*"
 
 
 def _enforce_privacy_access(ds: dict) -> bool:
@@ -1407,10 +1396,9 @@ def draw_datasets_section(dmp_root: dict) -> None:
         with c_label:
             st.caption("Parent Data Path")
         with c_input:
-            display_pattern = _as_dataset_pattern(parent_data_path)
             st.text_input(
                 "Parent Data Path",
-                value=display_pattern,
+                value=parent_data_path,
                 key=f"parent_data_path_display_v{widget_version}",
                 disabled=True,
                 label_visibility="collapsed",
@@ -1431,7 +1419,6 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
             if chosen:
                 chosen_norm = _normalize_chosen_path(chosen)
-                chosen_pattern = _as_dataset_pattern(chosen_norm)
 
                 # 1) Update in-memory parent path used by the UI
                 st.session_state["__parent_data_path__"] = chosen_norm
@@ -1446,7 +1433,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
                     # 3) Persist to TOML
                     write_toml(
-                        data={"patterns": [chosen_pattern]},
+                        data={"patterns": [chosen_norm]},
                         folder=str(PROJECT_ROOT),
                         json_filename=JSON_FILENAME,
                         tool_name="datasets",
@@ -1458,7 +1445,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
                         dataset_main(
                             dmp_path=save_path,
                             do_print=False,
-                            git_msg=f"Setting parent dataset path to {chosen_pattern}",
+                            git_msg=f"Setting parent dataset path to {chosen_norm}",
                         )
                     except Exception as e:
                         st.warning(f"dataset_main failed: {e}")
@@ -2339,6 +2326,92 @@ def _ensure_data_initialized(default_path: Path) -> None:
     st.session_state["save_path"] = str(default_path)
 
 
+def _bootstrap_dmp_from_selected_parent(default_path: Path) -> bool:
+    """
+    Standalone bootstrap: if no dmp.json exists, prompt for dataset parent folder,
+    persist [tool.datasets].patterns, and initialize DMP via dataset_main
+    with sub_dir=False.
+    """
+    if default_path.exists():
+        return False
+
+    if st.session_state.get("__bootstrap_no_dmp_done__", False):
+        return False
+
+    st.session_state["__bootstrap_no_dmp_done__"] = True
+
+    chosen = _browse_for_directory(
+        start_path=str(PROJECT_ROOT),
+        title="Select parent data folder for initial DMP dataset scan",
+        dir_only=True,
+    )
+    if not chosen:
+        st.session_state["__load_message__"] = (
+            "No dmp.json found and initialization was skipped (folder selection canceled). "
+            "Choose a parent data path to initialize datasets, or create/load a DMP manually."
+        )
+        return False
+
+    chosen_norm = _normalize_chosen_path(chosen)
+    default_dataset_path = {"parent_path": chosen_norm, "sub_dir": False}
+
+    write_toml(
+        data={"patterns": [chosen_norm]},
+        folder=str(PROJECT_ROOT),
+        json_filename=JSON_FILENAME,
+        tool_name="datasets",
+        toml_path=TOML_PATH,
+    )
+
+    try:
+        dataset_main(
+            dmp_path=str(default_path),
+            do_print=False,
+            git_msg="Initialize DMP from selected parent data path",
+            default_dataset_path=default_dataset_path,
+        )
+        st.session_state["__load_message__"] = (
+            f"Initialized DMP from parent data path: {chosen_norm}"
+        )
+        return True
+    except Exception as e:
+        st.warning(f"Failed initial dataset bootstrap: {e}")
+        return False
+
+
+def _resolve_data_parent_path() -> Path:
+    datasets_cfg = (
+        read_toml(
+            folder=str(PROJECT_ROOT),
+            json_filename=JSON_FILENAME,
+            tool_name="datasets",
+            toml_path=TOML_PATH,
+        )
+        or {}
+    )
+    patterns = datasets_cfg.get("patterns", [])
+    first_pattern = ""
+    if isinstance(patterns, str):
+        first_pattern = patterns.strip()
+    elif isinstance(patterns, list):
+        for p in patterns:
+            if isinstance(p, str) and p.strip():
+                first_pattern = p.strip()
+                break
+
+    if not first_pattern:
+        return PROJECT_ROOT
+
+    cleaned = first_pattern.replace("\\", "/")
+    if cleaned.endswith("/*"):
+        cleaned = cleaned[:-2]
+    cleaned = cleaned.rstrip("/")
+    path_candidate = Path(cleaned or ".")
+    if not path_candidate.is_absolute():
+        path_candidate = (PROJECT_ROOT / path_candidate).resolve()
+    return path_candidate
+
+
 def main() -> None:
     launch_root_raw = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
     launch_root = Path(launch_root_raw).resolve() if launch_root_raw else Path.cwd().resolve()
@@ -2349,11 +2422,9 @@ def main() -> None:
 
     global PROJECT_ROOT, DATA_PARENT_PATH
     PROJECT_ROOT = _repokit_common.PROJECT_ROOT
-    dataset_cfg, _ = toml_dataset_path()
-    parent = Path(dataset_cfg["parent_path"])
-    if not parent.is_absolute():
-        parent = (PROJECT_ROOT / parent).resolve()
-    DATA_PARENT_PATH = parent
+    default_path = find_default_dmp_path()
+    _bootstrap_dmp_from_selected_parent(default_path)
+    DATA_PARENT_PATH = _resolve_data_parent_path()
 
     st.set_page_config(page_title=f"RDA-DMP {SCHEMA_VERSION} JSON Editor", layout="wide")
     st.title(f"RDA-DMP {SCHEMA_VERSION} JSON Editor")
@@ -2373,7 +2444,6 @@ def main() -> None:
 
     # Load schema & default DMP path
     schema_now = safe_fetch_schema()
-    default_path = find_default_dmp_path()
 
     # IMPORTANT: initialize data BEFORE rendering the sidebar
     _ensure_data_initialized(default_path)

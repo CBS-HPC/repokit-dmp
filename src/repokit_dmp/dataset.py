@@ -1070,7 +1070,10 @@ def dataset_to_readme(markdown_table: str, readme_file: str = "./README.md", do_
 
 
 def dataset_path_update(
-    data_files: list[str] | None = None, dmp_path: str = DEFAULT_DMP_PATH, git_msg: str = None
+    data_files: list[str] | None = None,
+    dmp_path: str = DEFAULT_DMP_PATH,
+    git_msg: str = None,
+    default_dataset_path:dict=None,
 ):
     if isinstance(data_files, str):
         data_files = [data_files]
@@ -1082,13 +1085,14 @@ def dataset_path_update(
 
     os.chdir(PROJECT_ROOT)
 
-    DEFAULT_DATASET_PATH, _ = toml_dataset_path()
+    if default_dataset_path is None:
+        default_dataset_path, _ = toml_dataset_path()
 
     file_descriptions = read_toml(
-        folder=PROJECT_ROOT,
-        json_filename="./file_descriptions.json",
-        tool_name="file_descriptions",
-        toml_path="pyproject.toml",
+        folder = PROJECT_ROOT,
+        json_filename = "./file_descriptions.json",
+        tool_name = "file_descriptions",
+        toml_path = "pyproject.toml",
     )
 
     change_flag = False
@@ -1122,7 +1126,7 @@ def dataset_path_update(
         and not os.path.exists(".datalad")
         and not os.path.exists(".dvc")
     ):
-        with change_dir(DEFAULT_DATASET_PATH["parent_path"]):
+        with change_dir(default_dataset_path["parent_path"]):
             if os.path.exists(".git"):
                 if git_commit:
                     _ = git_commit(msg=git_msg, path=os.getcwd())
@@ -1132,7 +1136,10 @@ def dataset_path_update(
 
 @ensure_correct_kernel
 def main(
-    dmp_path: str = DEFAULT_DMP_PATH, do_print: bool = True, git_msg: str = "Running 'set-dataset'"
+    dmp_path: str = DEFAULT_DMP_PATH,
+    do_print: bool = True,
+    git_msg: str = "Running 'set-dataset'",
+    default_dataset_path:dict=None,
 ):
     ensure_project_root()
 
@@ -1145,9 +1152,10 @@ def main(
         if dvc_cleaning:
             dvc_cleaning(PROJECT_ROOT)
 
-    DEFAULT_DATASET_PATH, _ = toml_dataset_path()
+    if default_dataset_path is None:
+        default_dataset_path, _ = toml_dataset_path()
 
-    data_files, _ = get_data_files(ignore=IGNORE_DICT)
+    data_files, _ = get_data_files(cfg=default_dataset_path, ignore=IGNORE_DICT)
 
     create_or_update_dmp_from_schema(dmp_path=dmp_path)
 
@@ -1194,7 +1202,7 @@ def main(
         and not os.path.exists(".datalad")
         and not os.path.exists(".dvc")
     ):
-        with change_dir(DEFAULT_DATASET_PATH["parent_path"]):
+        with change_dir(default_dataset_path["parent_path"]):
             if os.path.exists(".git"):
                 if git_commit:
                     _ = git_commit(msg=git_msg, path=os.getcwd())
