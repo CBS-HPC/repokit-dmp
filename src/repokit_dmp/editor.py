@@ -1131,33 +1131,8 @@ def edit_any(value: Any, path: tuple, ns: str | None = None) -> Any:
 
 def find_default_dmp_path(start: Path | None = None) -> Path:
     launch_root_raw = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
-    launch_root = Path(launch_root_raw).resolve() if launch_root_raw else None
-
-    start = start or Path(__file__).resolve().parent
-    candidates = ["dmp.json"]
-
-    base_candidates: list[Path] = []
-    if launch_root is not None:
-        base_candidates.append(launch_root)
-    base_candidates.extend([Path.cwd(), *Path.cwd().parents, start, *start.parents])
-
-    seen: set[str] = set()
-    deduped_bases: list[Path] = []
-    for b in base_candidates:
-        key = str(b.resolve()) if b.exists() else str(b)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped_bases.append(b)
-
-    for base in deduped_bases:
-        for name in candidates:
-            p = base / name
-            if p.exists():
-                return p
-
-    if launch_root is not None:
-        return launch_root / "dmp.json"
+    if launch_root_raw:
+        return (Path(launch_root_raw).resolve() / "dmp.json").resolve()
     return (PROJECT_ROOT / "dmp.json").resolve()
 
 
@@ -1471,7 +1446,7 @@ def draw_datasets_section(dmp_root: dict) -> None:
 
                     # 3) Persist to TOML
                     write_toml(
-                        data={"patterns": chosen_pattern},
+                        data={"patterns": [chosen_pattern]},
                         folder=str(PROJECT_ROOT),
                         json_filename=JSON_FILENAME,
                         tool_name="datasets",
@@ -2365,7 +2340,10 @@ def _ensure_data_initialized(default_path: Path) -> None:
 
 
 def main() -> None:
-    ensure_project_root()
+    launch_root_raw = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
+    launch_root = Path(launch_root_raw).resolve() if launch_root_raw else Path.cwd().resolve()
+    ensure_project_root(launch_root)
+    os.chdir(str(launch_root))
     # Refresh runtime globals after Streamlit process bootstrap.
     import repokit_common as _repokit_common
 
@@ -2531,6 +2509,7 @@ def cli() -> None:
     launch_root = Path.cwd().resolve()
     os.environ["REPOKIT_DMP_PROJECT_ROOT"] = str(launch_root)
     ensure_project_root(launch_root)
+    os.chdir(str(launch_root))
     app_path = Path(__file__).resolve()
     ssh_mode = len(sys.argv) > 1 and sys.argv[1] == "ssh"
     if ssh_mode:
