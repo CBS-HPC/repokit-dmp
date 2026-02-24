@@ -2322,7 +2322,8 @@ def _ensure_data_initialized(default_path: Path) -> None:
 
     st.session_state["data"] = ensure_dmp_shape({})
     st.session_state["__loaded_from__"] = "new"
-    st.session_state["__load_message__"] = "⚠️ Started with an empty DMP."
+    if not str(st.session_state.get("__load_message__", "")).strip():
+        st.session_state["__load_message__"] = "⚠️ Started with an empty DMP."
     st.session_state["save_path"] = str(default_path)
 
 
