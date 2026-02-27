@@ -178,6 +178,19 @@ repokit-dmp editor
 repokit-dmp editor ssh
 ```
 
+#### SSH mode (`repokit-dmp editor ssh`)
+
+Use SSH mode when the editor runs on a remote/headless machine and your browser runs locally.
+
+- On remote, run `repokit-dmp editor ssh`
+- The CLI prompts for SSH host/user and SSH port (reuses/saves `SSH_HOST` and `SSH_PORT` in `.env`)
+- It prints an SSH tunnel command for your local machine
+- Start that tunnel locally, then open the Streamlit URL in your local browser
+
+Optional:
+
+- Set `DMP_PORT` in `.env` to change the default Streamlit port (`8501`)
+
 #### Tokens (for publishing)
 
 - Zenodo (Sandbox): set `ZENODO_TOKEN`
