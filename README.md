@@ -7,13 +7,7 @@ Data Management Plan (DMP) tooling for the Research Template. Works standalone o
 
 ## Installation
 
-> Note: `repokit-dmp` is not published on PyPI yet. Use local wheel/source installation for now.
-
-Install from PyPI:
-
-```bash
-pip install repokit-dmp
-```
+`repokit-dmp` is not published on PyPI yet. Use local wheel/source installation.
 
 Install from local wheel files (`/dist`):
 
@@ -41,7 +35,11 @@ Wheel filenames include version tags and may change over time.
 
 ### `repokit-dmp dataset`
 
-The `repokit-dmp dataset` command scans your `./data/` folder and registers each dataset into a structured metadata file (`dmp.json`). This helps track the location, structure, and reproducibility of datasets in your project.
+The `repokit-dmp dataset` command scans the dataset path configured in `pyproject.toml` under `[tool.datasets].patterns` (first entry), then registers discovered datasets into `dmp.json`.
+
+Default behavior when no dataset pattern is configured:
+
+- falls back to `data/*`
 
 It also:
 
@@ -59,15 +57,21 @@ repokit-dmp dataset
 
 #### What it does
 
-- Walks through subfolders in `./data/`
+- Resolves scan path from `[tool.datasets].patterns` (or default `data/*`)
+- Walks files/folders under that resolved path
 - Registers or updates metadata for each dataset folder or file
 - Runs any defined data-generation commands (if present)
 - Extracts Git commit hashes for version tracking
 - Updates the dataset table in your `README.md`
 - Regenerates a DCAS-compatible dataset list (`dataset_list.md`)
 
+Standalone note:
+
+- When launching `repokit-dmp editor` without an existing `dmp.json`, the editor bootstrap prompts you to choose a parent folder, writes that into `[tool.datasets].patterns`, and runs dataset initialization from that selected folder.
+- This editor bootstrap flow is separate from the `repokit-dmp dataset` command fallback (`data/*` when no pattern is configured).
+
 > Dataset metadata is stored in `dmp.json` using a normalized schema.
-> All dataset remapping logic happens inside the `repokit.rdm.dataset` module.
+> Dataset remapping/discovery logic is implemented in the `repokit_dmp.dataset` module.
 
 ---
 
@@ -136,6 +140,7 @@ repokit-dmp editor ssh
 Use SSH mode when the editor runs on a remote/headless machine and your browser runs locally.
 
 - On remote, run `repokit-dmp editor ssh`
+- The CLI prompts for `APP_PORT` (default from `.env` key `APP_PORT`, fallback `8501`)
 - The CLI prompts for SSH host/user and SSH port (reuses/saves `SSH_HOST` and `SSH_PORT` in `.env`)
 - It prints an SSH tunnel command for your local machine
 - Start that tunnel locally, then open the Streamlit URL in your local browser
