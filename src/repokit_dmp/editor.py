@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 from copy import deepcopy
@@ -2625,6 +2626,16 @@ def cli() -> None:
     if ssh_mode:
         sys.argv.pop(1)
         app_port = int(os.environ.get("DMP_PORT", "8501"))
+
+        # Safeguard: avoid ambiguous behavior when the target port is already occupied.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", app_port)) == 0:
+                print(
+                    f"DMP_PORT {app_port} is already in use on the remote host. "
+                    "Choose another port via DMP_PORT or stop the running service."
+                )
+                sys.exit(2)
+
         default_host = (load_from_env("SSH_HOST") or "ucloud@ssh.cloud.sdu.dk").strip()
         default_port = (load_from_env("SSH_PORT") or "22").strip()
 
@@ -2638,14 +2649,26 @@ def cli() -> None:
         port_prompt = f"SSH port [{default_port}]: "
         entered_port = input(port_prompt).strip()
         ssh_port = entered_port or default_port
+        if not str(ssh_port).isdigit() or not (1 <= int(ssh_port) <= 65535):
+            print("SSH port must be an integer in range 1-65535.")
+            sys.exit(2)
 
         save_to_env(ssh_host, "SSH_HOST")
         save_to_env(ssh_port, "SSH_PORT")
 
         cmd = f"ssh -N -L {app_port}:localhost:{app_port} {ssh_host} -p {ssh_port}"
-        print("\n=== SSH port forwarding ===")
-        print("Run this on your LOCAL machine, then open the URL below:")
-        print(f"  {cmd}\n")
+        sep = "=" * 60
+        print(f"\n{sep}")
+        print("SSH TUNNEL REQUIRED (run this on your LOCAL machine)")
+        print(sep)
+        print("\n1) Start tunnel:")
+        print(f"   {cmd}")
+        print("\n2) Keep that terminal open.")
+        print(f"\n3) Open Streamlit in your local browser:\n   http://localhost:{app_port}")
+        print("\nIf the page does not load:")
+        print("- Confirm tunnel is still running")
+        print("- Confirm remote editor is running on the same port")
+        print()
         sys.argv = [
             "streamlit",
             "run",
