@@ -22,9 +22,7 @@ pip install repokit-dmp
 
 ## Command reference
 
-### <a id="repokit-dmp-dataset"></a>
-<details>
-<summary><strong>🗃️ <code>repokit-dmp dataset</code></strong></summary>
+### `repokit-dmp dataset`
 
 The `repokit-dmp dataset` command scans your `./data/` folder and registers each dataset into a structured metadata file (`dmp.json`). This helps track the location, structure, and reproducibility of datasets in your project.
 
@@ -55,11 +53,84 @@ repokit-dmp dataset
 > All dataset remapping logic happens inside the `repokit.rdm.dataset` module.
 
 ---
-</details>
 
-### <a id="repokit-dmp-dcas-migration"></a>
-<details>
-<summary><strong>🚚 <code>repokit-dmp dcas-migration</code></strong></summary>
+### `repokit-dmp update`
+
+A headless command that (re)creates and normalizes your maDMP file `dmp.json` in the project root. It pulls defaults from the maDMP schema, your project’s Cookiecutter metadata, and built-in templates, then writes a clean, consistently ordered file.
+
+#### What it does
+
+- Creates `dmp.json` if missing, or loads and updates it if present
+- Sets/keeps the schema URL (`dmp.schema`) to the detected version (1.0/1.1/1.2). Defaults to 1.2 if unknown
+- Populates core fields from Cookiecutter (`pyproject.toml` / `cookiecutter.json`) when available
+- Infers affiliation from Danish university email domains (CBS, KU, SDU, AU, DTU, AAU, RUC, ITU) with ROR IDs
+- Adds required fields from the JSON Schema using schema-aware defaults
+- Seeds/normalizes datasets (ensures `dataset[]` and at least one `distribution[]`)
+- Sets default license in `distribution.license[].license_ref` from Cookiecutter `DATA_LICENSE` with today’s `start_date`
+- Moves custom payloads under `extension` and seeds a minimal `repokit_info`
+- Reorders keys to a canonical layout
+- Updates `dmp.modified` to current UTC (RFC3339 with trailing `Z`)
+
+#### Usage
+
+```bash
+repokit-dmp update
+```
+
+#### Reads (if present)
+
+- `./dmp.json`
+- `pyproject.toml` and/or `cookiecutter.json`
+
+#### Output
+
+- Writes an ordered, normalized `./dmp.json`
+- Prints: `DMP ensured at <abs path>/dmp.json using maDMP <version> schema (ordered).`
+
+---
+
+### `repokit-dmp editor`
+
+Interactive Streamlit editor for maDMPs with per-dataset publish buttons for Zenodo and DeiC Dataverse.
+
+#### Features
+
+- Schema-aware forms for Root, Projects, and Datasets (same defaults as `repokit-dmp update`)
+- In each dataset:
+  - `dataset_id` expanded inline for quick edits
+  - Single `distribution` expanded inline (multi-distribution falls back to list UI)
+  - Guardrails:
+    - If `personal_data` or `sensitive_data` is yes, all `distribution[].data_access` are forced to closed
+    - If access is shared/closed, CC license URLs are removed
+    - If access is open and license is empty, CC-BY-4.0 is added by default
+- Publish actions: “Publish to Zenodo” / “Publish to DeiC Dataverse” per dataset
+- Tokens sidebar: capture and persist `ZENODO_TOKEN` and `DATAVERSE_TOKEN` into `.env`
+- Load / Save / Download with optional schema validation
+
+#### Usage
+
+```bash
+repokit-dmp editor
+repokit-dmp editor ssh
+```
+
+#### SSH mode (`repokit-dmp editor ssh`)
+
+Use SSH mode when the editor runs on a remote/headless machine and your browser runs locally.
+
+- On remote, run `repokit-dmp editor ssh`
+- The CLI prompts for SSH host/user and SSH port (reuses/saves `SSH_HOST` and `SSH_PORT` in `.env`)
+- It prints an SSH tunnel command for your local machine
+- Start that tunnel locally, then open the Streamlit URL in your local browser
+
+#### Tokens (for publishing)
+
+- Zenodo (Sandbox): set `ZENODO_TOKEN`
+- DeiC Dataverse: set `DATAVERSE_TOKEN`
+
+---
+
+### `repokit-dmp dcas-migration`
 
 Purpose
 
@@ -109,95 +180,6 @@ Notes
 
 - The tool also mirrors key project artifacts to the DCAS package, including your language-specific source tree (Python `./src/`, R `./R/`, Stata `./stata/do/`, MATLAB `./src/`), depending on the project’s configured primary language
 - The README template is pulled from the Social Science Data Editors repository and saved as `README_template.md`
-
----
-</details>
-
-### <a id="repokit-dmp-update"></a>
-<details>
-<summary><strong>🔄 <code>repokit-dmp update</code></strong></summary>
-
-A headless command that (re)creates and normalizes your maDMP file `dmp.json` in the project root. It pulls defaults from the maDMP schema, your project’s Cookiecutter metadata, and built-in templates, then writes a clean, consistently ordered file.
-
-#### What it does
-
-- Creates `dmp.json` if missing, or loads and updates it if present
-- Sets/keeps the schema URL (`dmp.schema`) to the detected version (1.0/1.1/1.2). Defaults to 1.2 if unknown
-- Populates core fields from Cookiecutter (`pyproject.toml` / `cookiecutter.json`) when available
-- Infers affiliation from Danish university email domains (CBS, KU, SDU, AU, DTU, AAU, RUC, ITU) with ROR IDs
-- Adds required fields from the JSON Schema using schema-aware defaults
-- Seeds/normalizes datasets (ensures `dataset[]` and at least one `distribution[]`)
-- Sets default license in `distribution.license[].license_ref` from Cookiecutter `DATA_LICENSE` with today’s `start_date`
-- Moves custom payloads under `extension` and seeds a minimal `repokit_info`
-- Reorders keys to a canonical layout
-- Updates `dmp.modified` to current UTC (RFC3339 with trailing `Z`)
-
-#### Usage
-
-```bash
-repokit-dmp update
-```
-
-#### Reads (if present)
-
-- `./dmp.json`
-- `pyproject.toml` and/or `cookiecutter.json`
-
-#### Output
-
-- Writes an ordered, normalized `./dmp.json`
-- Prints: `DMP ensured at <abs path>/dmp.json using maDMP <version> schema (ordered).`
-
----
-</details>
-
-### <a id="repokit-dmp-editor"></a>
-<details>
-<summary><strong>✍️ <code>repokit-dmp editor</code></strong></summary>
-
-Interactive Streamlit editor for maDMPs with per-dataset publish buttons for Zenodo and DeiC Dataverse.
-
-#### Features
-
-- Schema-aware forms for Root, Projects, and Datasets (same defaults as `repokit-dmp update`)
-- In each dataset:
-  - `dataset_id` expanded inline for quick edits
-  - Single `distribution` expanded inline (multi-distribution falls back to list UI)
-  - Guardrails:
-    - If `personal_data` or `sensitive_data` is yes, all `distribution[].data_access` are forced to closed
-    - If access is shared/closed, CC license URLs are removed
-    - If access is open and license is empty, CC-BY-4.0 is added by default
-- Publish actions: “Publish to Zenodo” / “Publish to DeiC Dataverse” per dataset
-- Tokens sidebar: capture and persist `ZENODO_TOKEN` and `DATAVERSE_TOKEN` into `.env`
-- Load / Save / Download with optional schema validation
-
-#### Usage
-
-```bash
-repokit-dmp editor
-repokit-dmp editor ssh
-```
-
-#### SSH mode (`repokit-dmp editor ssh`)
-
-Use SSH mode when the editor runs on a remote/headless machine and your browser runs locally.
-
-- On remote, run `repokit-dmp editor ssh`
-- The CLI prompts for SSH host/user and SSH port (reuses/saves `SSH_HOST` and `SSH_PORT` in `.env`)
-- It prints an SSH tunnel command for your local machine
-- Start that tunnel locally, then open the Streamlit URL in your local browser
-
-Optional:
-
-- Set `DMP_PORT` in `.env` to change the default Streamlit port (`8501`)
-
-#### Tokens (for publishing)
-
-- Zenodo (Sandbox): set `ZENODO_TOKEN`
-- DeiC Dataverse: set `DATAVERSE_TOKEN`
-
----
-</details>
 
 ## License
 

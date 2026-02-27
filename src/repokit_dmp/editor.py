@@ -2625,14 +2625,27 @@ def cli() -> None:
     ssh_mode = len(sys.argv) > 1 and sys.argv[1] == "ssh"
     if ssh_mode:
         sys.argv.pop(1)
-        app_port = int(os.environ.get("DMP_PORT", "8501"))
+        default_app_port = (
+            load_from_env("APP_PORT")
+            or os.environ.get("APP_PORT")
+            or "8501"
+        )
+        app_port_prompt = f"App port [{default_app_port}]: "
+        entered_app_port = input(app_port_prompt).strip()
+        app_port_str = entered_app_port or str(default_app_port)
+        if not app_port_str.isdigit() or not (1 <= int(app_port_str) <= 65535):
+            print("App port must be an integer in range 1-65535.")
+            sys.exit(2)
+        app_port = int(app_port_str)
+        save_to_env(str(app_port), "APP_PORT")
+        os.environ["APP_PORT"] = str(app_port)
 
         # Safeguard: avoid ambiguous behavior when the target port is already occupied.
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             if s.connect_ex(("127.0.0.1", app_port)) == 0:
                 print(
-                    f"DMP_PORT {app_port} is already in use on the remote host. "
-                    "Choose another port via DMP_PORT or stop the running service."
+                    f"APP_PORT {app_port} is already in use on the remote host. "
+                    "Choose another APP_PORT or stop the running service."
                 )
                 sys.exit(2)
 
