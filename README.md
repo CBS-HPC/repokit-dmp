@@ -7,6 +7,8 @@ Data Management Plan (DMP) tooling for the Research Template. Works standalone o
 
 ## Installation
 
+> Note: `repokit-dmp` is not published on PyPI yet. Use local wheel/source installation for now.
+
 Install from PyPI:
 
 ```bash
