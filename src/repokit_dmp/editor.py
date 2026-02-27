@@ -2625,7 +2625,24 @@ def cli() -> None:
     if ssh_mode:
         sys.argv.pop(1)
         app_port = int(os.environ.get("DMP_PORT", "8501"))
-        cmd = f"ssh -N -L {app_port}:localhost:{app_port} example@host.dk -p PORT (The host and port you have connected)"
+        default_host = (load_from_env("SSH_HOST") or "ucloud@ssh.cloud.sdu.dk").strip()
+        default_port = (load_from_env("SSH_PORT") or "22").strip()
+
+        host_prompt = f"SSH host/user (user@host){f' [{default_host}]' if default_host else ''}: "
+        entered_host = input(host_prompt).strip()
+        ssh_host = entered_host or default_host
+        if not ssh_host:
+            print("SSH host is required for ssh mode.")
+            sys.exit(2)
+
+        port_prompt = f"SSH port [{default_port}]: "
+        entered_port = input(port_prompt).strip()
+        ssh_port = entered_port or default_port
+
+        save_to_env(ssh_host, "SSH_HOST")
+        save_to_env(ssh_port, "SSH_PORT")
+
+        cmd = f"ssh -N -L {app_port}:localhost:{app_port} {ssh_host} -p {ssh_port}"
         print("\n=== SSH port forwarding ===")
         print("Run this on your LOCAL machine, then open the URL below:")
         print(f"  {cmd}\n")
