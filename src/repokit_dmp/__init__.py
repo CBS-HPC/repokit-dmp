@@ -12,11 +12,7 @@ def ensure_project_root(root: str | pathlib.Path | None = None) -> pathlib.Path:
     Set PROJECT_ROOT for standalone use.
     Also updates repokit-common modules that cache PROJECT_ROOT at import time.
     """
-    if root is None:
-        env_root = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
-        root_path = pathlib.Path(env_root).resolve() if env_root else pathlib.Path.cwd().resolve()
-    else:
-        root_path = pathlib.Path(root).resolve()
+    root_path = pathlib.Path(root).resolve() if root is not None else pathlib.Path.cwd().resolve()
 
     repokit_common.PROJECT_ROOT = root_path
 
@@ -37,4 +33,14 @@ def ensure_project_root(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return root_path
 
 
-__all__ = ["ensure_project_root"]
+def bootstrap_runtime_root(root: str | pathlib.Path | None = None, chdir: bool = True) -> pathlib.Path:
+    """
+    Resolve and apply runtime project root consistently for CLI entrypoints.
+    """
+    root_path = ensure_project_root(root)
+    if chdir:
+        os.chdir(str(root_path))
+    return root_path
+
+
+__all__ = ["ensure_project_root", "bootstrap_runtime_root"]

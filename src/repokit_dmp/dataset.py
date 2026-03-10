@@ -24,7 +24,7 @@ from repokit_common import (
     write_toml,
 )
 
-from . import ensure_project_root
+from . import bootstrap_runtime_root
 from .dmp import (
     DEFAULT_DMP_PATH,
     LICENSE_LINKS,
@@ -1141,9 +1141,8 @@ def main(
     git_msg: str = "Running 'set-dataset'",
     default_dataset_path:dict=None,
 ):
-    ensure_project_root()
-
-    os.chdir(PROJECT_ROOT)
+    global PROJECT_ROOT
+    PROJECT_ROOT = bootstrap_runtime_root()
 
     if os.path.exists(".datalad"):
         if datalad_cleaning:

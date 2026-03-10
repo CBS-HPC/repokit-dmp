@@ -16,7 +16,7 @@ from repokit_common import (
     TOML_PATH,
     TOOL_NAME,
 )
-from . import ensure_project_root
+from . import bootstrap_runtime_root
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -1514,8 +1514,8 @@ def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
 
 
 def main() -> None:
-    ensure_project_root()
-    os.chdir(PROJECT_ROOT)
+    global PROJECT_ROOT
+    PROJECT_ROOT = bootstrap_runtime_root()
     create_or_update_dmp_from_schema(dmp_path=DEFAULT_DMP_PATH)
 
 

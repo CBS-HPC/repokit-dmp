@@ -53,7 +53,7 @@ try:
         TOOL_NAME,
         TOML_PATH,
     )
-    from . import ensure_project_root
+    from . import bootstrap_runtime_root
     from .dataverse import PublishError, streamlit_publish_to_dataverse
     from .dataset import dataset_path_update, main as dataset_main
     from .dmp import (
@@ -95,7 +95,7 @@ except ImportError:
         TOOL_NAME,
         TOML_PATH,
     )
-    from repokit_dmp import ensure_project_root
+    from repokit_dmp import bootstrap_runtime_root
     from repokit_dmp.dataverse import PublishError, streamlit_publish_to_dataverse
     from repokit_dmp.dataset import dataset_path_update, main as dataset_main
     from repokit_dmp.dmp import (
@@ -1120,10 +1120,8 @@ def edit_any(value: Any, path: tuple, ns: str | None = None) -> Any:
 
 
 def find_default_dmp_path(start: Path | None = None) -> Path:
-    launch_root_raw = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
-    if launch_root_raw:
-        return (Path(launch_root_raw).resolve() / "dmp.json").resolve()
-    return (PROJECT_ROOT / "dmp.json").resolve()
+    root = Path(start).resolve() if start is not None else PROJECT_ROOT
+    return (root / "dmp.json").resolve()
 
 
 def draw_root_section(dmp_root: dict[str, Any]) -> None:
@@ -2453,15 +2451,8 @@ def _resolve_data_parent_path() -> Path:
 
 
 def main() -> None:
-    launch_root_raw = os.environ.get("REPOKIT_DMP_PROJECT_ROOT", "").strip()
-    launch_root = Path(launch_root_raw).resolve() if launch_root_raw else Path.cwd().resolve()
-    ensure_project_root(launch_root)
-    os.chdir(str(launch_root))
-    # Refresh runtime globals after Streamlit process bootstrap.
-    import repokit_common as _repokit_common
-
     global PROJECT_ROOT, DATA_PARENT_PATH
-    PROJECT_ROOT = _repokit_common.PROJECT_ROOT
+    PROJECT_ROOT = bootstrap_runtime_root()
     _ensure_data_policy_config()
     default_path = find_default_dmp_path()
     _bootstrap_dmp_from_selected_parent(default_path)
@@ -2618,9 +2609,7 @@ def main() -> None:
 
 def cli() -> None:
     launch_root = Path.cwd().resolve()
-    os.environ["REPOKIT_DMP_PROJECT_ROOT"] = str(launch_root)
-    ensure_project_root(launch_root)
-    os.chdir(str(launch_root))
+    bootstrap_runtime_root(launch_root)
     app_path = Path(__file__).resolve()
     ssh_mode = len(sys.argv) > 1 and sys.argv[1] == "ssh"
     if ssh_mode:
