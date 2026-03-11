@@ -1,13 +1,35 @@
-from . import normalization_and_templates as _normalization_and_templates
-
-globals().update(
-    {
-        _name: getattr(_normalization_and_templates, _name)
-        for _name in dir(_normalization_and_templates)
-        if not _name.startswith("_")
-    }
+from .normalization_and_templates import (
+    Any,
+    DEFAULT_DMP_PATH,
+    Path,
+    _apply_cookiecutter_meta,
+    _deref,
+    _resolve_first,
+    apply_defaults_in_place,
+    data_type_from_path,
+    deepcopy,
+    dmp_default_templates,
+    fetch_schema,
+    get_repokit_info_payload,
+    load_json,
+    now_iso_minute,
+    set_repokit_info_payload,
 )
-del _normalization_and_templates
+from .schema_io import (
+    DATASET_ID_KEY_ORDER,
+    DATASET_KEY_ORDER,
+    DISTRIBUTION_KEY_ORDER,
+    DMP_KEY_ORDER,
+    HOST_KEY_ORDER,
+    LICENSE_ITEM_KEY_ORDER,
+    METADATA_ITEM_KEY_ORDER,
+    SCHEMA_URLS,
+    SCHEMA_VERSION,
+    SEC_PRIV_ITEM_KEY_ORDER,
+    TECH_RES_ITEM_KEY_ORDER,
+    save_json,
+)
+from .. import bootstrap_runtime_root
 def _enum_default(prop_name: str | None, options: list[Any]) -> Any:
     """
     Choose a default for enum fields using project rules:

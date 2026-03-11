@@ -1,7 +1,4 @@
 import json
-import os
-import urllib.request
-from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,14 +6,11 @@ from typing import Any
 from repokit_common import (
     PROJECT_ROOT,
     read_toml,
-    write_toml,
     split_multi,
-    toml_dataset_path,
     JSON_FILENAME,
     TOML_PATH,
     TOOL_NAME,
 )
-from .. import bootstrap_runtime_root
 
 
 def now_iso_minute() -> str:
@@ -92,9 +86,6 @@ SCHEMA_URLS: dict[str, str] = {
 DEFAULT_DMP_PATH = Path("./dmp.json")
 REPOKIT_INFO_KEY = "repokit_info"
 LEGACY_REPOKIT_INFO_KEYS: tuple[str, ...] = ()
-
-
-DEFAULT_DATASET_PATH, _ = toml_dataset_path()
 
 
 def schema_version_from_url(url: str, default: str = "1.2") -> str:

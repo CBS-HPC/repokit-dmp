@@ -1,13 +1,32 @@
-from . import dataset_discovery_and_policy as _dataset_discovery_and_policy
-
-globals().update(
-    {
-        _name: getattr(_dataset_discovery_and_policy, _name)
-        for _name in dir(_dataset_discovery_and_policy)
-        if not _name.startswith("_")
-    }
+from .dataset_discovery_and_policy import (
+    DEFAULT_DMP_PATH,
+    IGNORE_DICT,
+    _is_restricted_dataset_path,
+    data_type_from_path,
+    dataset,
+    get_repokit_info_payload,
+    os,
+    pathlib,
+    read_toml,
+    remove_missing_datasets,
 )
-del _dataset_discovery_and_policy
+import json
+from collections import defaultdict
+
+from repokit_common import change_dir, ensure_correct_kernel, toml_dataset_path
+
+from .. import bootstrap_runtime_root
+from ..dmp import create_or_update_dmp_from_schema, ensure_dmp_shape
+from .metadata_and_paths import (
+    _sync_sensitive_policy_artifacts_from_dmp,
+    datalad_cleaning,
+    dvc_cleaning,
+    get_data_files,
+    git_commit,
+    git_log_to_file,
+    set_datalad,
+    set_dvc,
+)
 def generate_dataset_table(
     json_path: str,
     file_descriptions: dict[str, str] | None = None,

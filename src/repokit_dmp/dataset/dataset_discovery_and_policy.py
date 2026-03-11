@@ -1,13 +1,33 @@
-from . import metadata_and_paths as _metadata_and_paths
-
-globals().update(
-    {
-        _name: getattr(_metadata_and_paths, _name)
-        for _name in dir(_metadata_and_paths)
-        if not _name.startswith("_")
-    }
+from .metadata_and_paths import (
+    Any,
+    DEFAULT_DMP_PATH,
+    DEFAULT_UPDATE_DIST_FIELDS,
+    DEFAULT_UPDATE_FIELDS,
+    IGNORE_DICT,
+    Iterable,
+    LICENSE_LINKS,
+    PROJECT_ROOT,
+    _is_restricted_dataset_path,
+    _pseudonymize_data_files,
+    check_path_format,
+    data_type_from_path,
+    datetime,
+    deepcopy,
+    dmp_default_templates,
+    get_all_files,
+    get_file_info,
+    get_hash,
+    get_repokit_info_payload,
+    load_json,
+    norm_rel_urlish,
+    now_iso_minute,
+    os,
+    pathlib,
+    read_toml,
+    save_json,
+    set_repokit_info_payload,
+    to_bytes_mb,
 )
-del _metadata_and_paths
 def datasets_to_json(
     json_path=DEFAULT_DMP_PATH,
     entry=None,

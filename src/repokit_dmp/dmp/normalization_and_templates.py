@@ -1,13 +1,27 @@
-from . import schema_io as _schema_io
-
-globals().update(
-    {
-        _name: getattr(_schema_io, _name)
-        for _name in dir(_schema_io)
-        if not _name.startswith("_")
-    }
+from .schema_io import (
+    Any,
+    DEFAULT_DMP_PATH,
+    JSON_FILENAME,
+    LEGACY_REPOKIT_INFO_KEYS,
+    LICENSE_LINKS,
+    PROJECT_ROOT,
+    Path,
+    REPOKIT_INFO_KEY,
+    SCHEMA_CACHE_FILES,
+    SCHEMA_DOWNLOAD_URLS,
+    SCHEMA_VERSION,
+    TOML_PATH,
+    TOOL_NAME,
+    _set_contacts,
+    datetime,
+    dmp_default_templates,
+    json,
+    load_json,
+    read_toml,
 )
-del _schema_io
+import urllib
+from copy import deepcopy
+from repokit_common import toml_dataset_path, write_toml
 def _apply_cookiecutter_meta(
     project_root: Path, data: dict[str, Any], overwrite: bool = False
 ) -> None:
