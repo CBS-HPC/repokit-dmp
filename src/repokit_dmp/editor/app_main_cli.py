@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import sys
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
