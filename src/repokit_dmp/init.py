@@ -18,21 +18,31 @@ DEFAULT_DATA_POLICY_DESCRIPTION = (
 )
 
 
-def _ensure_dataset_policy(root_path: Path) -> None:
-    datasets_cfg = (
+def _load_tool_config(root_path: Path, tool_name: str) -> dict:
+    pyproject_path = root_path / "pyproject.toml"
+    if not pyproject_path.exists():
+        return {}
+    return (
         read_toml(
             folder=str(root_path),
             json_filename=None,
-            tool_name="datasets",
+            tool_name=tool_name,
             toml_path="pyproject.toml",
         )
         or {}
     )
-    patterns = datasets_cfg.get("patterns")
-    if isinstance(patterns, list):
-        patterns = [p for p in patterns if isinstance(p, str) and p.strip()]
-    elif isinstance(patterns, str):
-        patterns = patterns.strip() or DEFAULT_DATASET_PATTERNS
+
+
+def _ensure_dataset_policy(root_path: Path, pyproject_exists: bool) -> None:
+    if pyproject_exists:
+        datasets_cfg = _load_tool_config(root_path, "datasets")
+        patterns = datasets_cfg.get("patterns")
+        if isinstance(patterns, list):
+            patterns = [p for p in patterns if isinstance(p, str) and p.strip()]
+        elif isinstance(patterns, str):
+            patterns = patterns.strip() or DEFAULT_DATASET_PATTERNS
+        else:
+            patterns = DEFAULT_DATASET_PATTERNS
     else:
         patterns = DEFAULT_DATASET_PATTERNS
 
@@ -45,29 +55,27 @@ def _ensure_dataset_policy(root_path: Path) -> None:
     )
 
 
-def _ensure_data_policy(root_path: Path) -> None:
-    data_policy_cfg = (
-        read_toml(
-            folder=str(root_path),
-            json_filename=None,
-            tool_name="data_policy",
-            toml_path="pyproject.toml",
-        )
-        or {}
-    )
-    patterns = data_policy_cfg.get("patterns")
-    if isinstance(patterns, str):
-        patterns = [patterns.strip()] if patterns.strip() else []
-    elif isinstance(patterns, list):
-        patterns = [p for p in patterns if isinstance(p, str) and p.strip()]
-    else:
-        patterns = []
+def _ensure_data_policy(root_path: Path, pyproject_exists: bool) -> None:
+    if pyproject_exists:
+        data_policy_cfg = _load_tool_config(root_path, "data_policy")
+        patterns = data_policy_cfg.get("patterns")
+        if isinstance(patterns, str):
+            patterns = [patterns.strip()] if patterns.strip() else []
+        elif isinstance(patterns, list):
+            patterns = [p for p in patterns if isinstance(p, str) and p.strip()]
+        else:
+            patterns = []
 
-    payload = {
-        "tool-description": data_policy_cfg.get("tool-description")
-        or DEFAULT_DATA_POLICY_DESCRIPTION,
-        "patterns": patterns,
-    }
+        payload = {
+            "tool-description": data_policy_cfg.get("tool-description")
+            or DEFAULT_DATA_POLICY_DESCRIPTION,
+            "patterns": patterns,
+        }
+    else:
+        payload = {
+            "tool-description": DEFAULT_DATA_POLICY_DESCRIPTION,
+            "patterns": [],
+        }
 
     write_toml(
         data=payload,
@@ -83,9 +91,10 @@ def init_project(force: bool = False) -> dict[str, object]:
     root_path = bootstrap_runtime_root()
     pyproject_path = root_path / "pyproject.toml"
     dmp_path = root_path / DEFAULT_DMP_PATH
+    pyproject_exists = pyproject_path.exists()
 
-    _ensure_dataset_policy(root_path)
-    _ensure_data_policy(root_path)
+    _ensure_dataset_policy(root_path, pyproject_exists=pyproject_exists)
+    _ensure_data_policy(root_path, pyproject_exists=pyproject_exists)
 
     created_dmp = False
     if force or not dmp_path.exists():
