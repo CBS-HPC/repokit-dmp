@@ -16,6 +16,7 @@ from .bootstrap_and_policies import (
     dataset_main,
     dataset_path_update,
     dmp_default_templates,
+    get_repokit_info_payload,
     load_from_env,
     streamlit_publish_to_dataverse,
     streamlit_publish_to_zenodo,
@@ -40,6 +41,19 @@ from .widget_helpers import (
     _resolve_browse_start_path,
     edit_any,
 )
+
+
+def _dataset_heading_label(ds: dict, index: int, title: str) -> str:
+    info = get_repokit_info_payload(ds) or {}
+    number_of_files = info.get("number_of_files")
+    data_files = info.get("data_files")
+    is_scanned = bool(info)
+    is_empty = is_scanned and (
+        number_of_files == 0 or (isinstance(data_files, list) and len(data_files) == 0)
+    )
+    suffix = " (Empty)" if is_empty else ""
+    return f"Dataset #{index + 1}: {title}{suffix}"
+
 
 def draw_datasets_section(dmp_root: dict) -> None:
     # Local import avoids module-level circular dependency with sections_datasets.
@@ -199,8 +213,9 @@ def draw_datasets_section(dmp_root: dict) -> None:
         title_key = f"dmp|dataset|{i}|title|deep|prim_v{widget_version}"
         live_title = st.session_state.get(title_key, ds.get("title"))
         header_title = (live_title or ds.get("title") or "Dataset").strip() or "Dataset"
+        header_label = _dataset_heading_label(ds, i, header_title)
 
-        with st.expander(f"Dataset #{i + 1}: {header_title}", expanded=False):
+        with st.expander(header_label, expanded=False):
             prev_is_reused = _is_reused(ds)
 
             is_reused = _is_reused(ds)
