@@ -1,6 +1,7 @@
 from copy import deepcopy
 from datetime import date, datetime
 from pathlib import Path
+import time
 from typing import Any
 
 import streamlit as st
@@ -14,6 +15,13 @@ from .bootstrap_and_policies import (
     today_iso,
     _has_privacy_flags,
 )
+
+
+def _edit_any(value: Any, path: tuple, ns: str | None = None) -> Any:
+    from .widget_helpers import edit_any
+
+    return edit_any(value, path=path, ns=ns)
+
 
 def _normalize_chosen_path(chosen: str) -> str:
     """
@@ -134,7 +142,7 @@ def _edit_distribution_inline(arr: list[Any], path: tuple, ns: str | None = None
     if len(arr) == 1 and isinstance(arr[0], dict):
         _inject_dist_css_once()
         with st.expander("Distribution", expanded=True):
-            arr[0] = edit_any(arr[0], path=(*path, 0), ns=ns)
+            arr[0] = _edit_any(arr[0], path=(*path, 0), ns=ns)
         return arr
     return edit_array(arr, path=path, title_singular="Distribution", removable_items=True, ns=ns)
 
@@ -144,7 +152,7 @@ def _edit_dataset_id_inline(obj: Any, path: tuple, ns: str | None = None) -> dic
         templates = dmp_default_templates()
         obj = deepcopy(templates["dataset"]["dataset_id"])
     with st.expander("Dataset ID", expanded=True):
-        obj = edit_any(obj, path=path, ns=ns)
+        obj = _edit_any(obj, path=path, ns=ns)
     return obj
 
 
@@ -179,14 +187,24 @@ def _parse_iso_date(s: Any) -> date | None:
 
 def _get_schema_cached() -> dict[str, Any] | None:
     key = "__rda_schema__"
-    if key in st.session_state:
-        return st.session_state[key]
+    fail_key = "__rda_schema_failed_at__"
+    cached = st.session_state.get(key, ...)
+    if cached not in (..., None):
+        return cached
+
+    failed_at = st.session_state.get(fail_key)
+    if isinstance(failed_at, (int, float)) and (time.monotonic() - failed_at) < 60:
+        return None
+
     try:
         sch = fetch_schema()
         st.session_state[key] = sch
+        st.session_state.pop(fail_key, None)
         return sch
-    except Exception:
+    except Exception as exc:
         st.session_state[key] = None
+        st.session_state[fail_key] = time.monotonic()
+        st.session_state["__rda_schema_error__"] = str(exc)
         return None
 
 
@@ -460,7 +478,7 @@ def edit_array(
     if len(arr) == 1 and isinstance(arr[0], dict):
         label = path[-1] if path else title_singular
         st.caption(f"{label} — single entry")
-        arr[0] = edit_any(arr[0], path=(*path, 0), ns=ns)
+        arr[0] = _edit_any(arr[0], path=(*path, 0), ns=ns)
         if removable_items:
             if st.button(
                 f"🗑️ Remove this {title_singular.lower()}", key=_key_for(*path, ns, "rm_single")
@@ -483,7 +501,7 @@ def edit_array(
         with st.expander(heading, expanded=False):
             # Only edit if we're not deleting this item
             if item_to_delete != i:
-                arr[i] = edit_any(item, path=(*path, i), ns=ns)
+                arr[i] = _edit_any(item, path=(*path, i), ns=ns)
 
             if removable_items:
                 if st.button(

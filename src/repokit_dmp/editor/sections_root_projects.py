@@ -32,6 +32,7 @@ from .schema_and_editors import (
     _key_for,
     _normalize_license_by_access,
     _normalize_chosen_path,
+    _ensure_open_has_license,
 )
 from .widget_helpers import (
     _browse_for_directory,

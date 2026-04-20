@@ -177,6 +177,11 @@ def main() -> None:
     default_path = find_default_dmp_path()
     _bootstrap_dmp_from_selected_parent(default_path)
     DATA_PARENT_PATH = _resolve_data_parent_path()
+    import repokit_dmp.editor.bootstrap_and_policies as _bootstrap_and_policies
+    import repokit_dmp.editor.sections_root_projects as _sections_root_projects
+
+    _bootstrap_and_policies.DATA_PARENT_PATH = DATA_PARENT_PATH
+    _sections_root_projects.DATA_PARENT_PATH = DATA_PARENT_PATH
 
     st.set_page_config(page_title=f"RDA-DMP {SCHEMA_VERSION} JSON Editor", layout="wide")
     st.title(f"RDA-DMP {SCHEMA_VERSION} JSON Editor")

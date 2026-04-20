@@ -245,7 +245,7 @@ def fetch_schema(
     if cache_path.exists() and not force:
         with cache_path.open("r", encoding="utf-8") as f:
             return json.load(f)
-    with urllib.request.urlopen(schema_url) as resp:
+    with urllib.request.urlopen(schema_url, timeout=20) as resp:
         raw = resp.read().decode("utf-8")
     data = json.loads(raw)
     with cache_path.open("w", encoding="utf-8") as f:

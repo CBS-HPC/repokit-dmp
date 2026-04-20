@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import sys
 import repokit_common
 
 
@@ -29,6 +30,16 @@ def ensure_project_root(root: str | pathlib.Path | None = None) -> pathlib.Path:
         _tomlutils.PROJECT_ROOT = root_path
     except Exception:
         pass
+
+    # Keep already-imported repokit-dmp modules aligned with the active runtime root.
+    for module_name, module in list(sys.modules.items()):
+        if not module_name.startswith("repokit_dmp"):
+            continue
+        if hasattr(module, "PROJECT_ROOT"):
+            try:
+                setattr(module, "PROJECT_ROOT", root_path)
+            except Exception:
+                pass
 
     return root_path
 

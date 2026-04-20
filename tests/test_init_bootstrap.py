@@ -111,3 +111,21 @@ def test_init_project_force_rebuilds_dmp(tmp_path, monkeypatch):
 
     assert result["created_dmp"] is True
     assert json.loads(dmp_path.read_text(encoding="utf-8")) == {"dmp": {"forced": True}}
+
+
+def test_bootstrap_runtime_root_syncs_loaded_modules(tmp_path):
+    import repokit_dmp
+    from repokit_dmp.dataset import metadata_and_paths as metadata_module
+    from repokit_dmp.dmp import normalization_and_templates as norm_module
+    from repokit_dmp.dmp import schema_io as schema_module
+    from repokit_dmp.editor import bootstrap_and_policies as bootstrap_module
+    from repokit_dmp.editor import schema_and_editors as editor_schema_module
+
+    root = repokit_dmp.bootstrap_runtime_root(tmp_path)
+
+    assert root == tmp_path.resolve()
+    assert bootstrap_module.PROJECT_ROOT == root
+    assert editor_schema_module.PROJECT_ROOT == root
+    assert norm_module.PROJECT_ROOT == root
+    assert schema_module.PROJECT_ROOT == root
+    assert metadata_module.PROJECT_ROOT == root

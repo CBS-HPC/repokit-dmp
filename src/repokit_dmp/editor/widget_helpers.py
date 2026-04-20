@@ -28,6 +28,7 @@ from .schema_and_editors import (
     _normalize_chosen_path,
     edit_array,
     edit_primitive,
+    _show_readonly_json,
 )
 
 def edit_object(
