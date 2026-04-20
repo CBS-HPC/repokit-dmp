@@ -37,6 +37,7 @@ from .schema_and_editors import (
 from .widget_helpers import (
     _browse_for_directory,
     _reload_dmp_from_disk,
+    _resolve_browse_start_path,
     edit_any,
 )
 
@@ -60,8 +61,8 @@ def draw_datasets_section(dmp_root: dict) -> None:
         datasets = []
         dmp_root["dataset"] = datasets
 
-    # --- Top row: Add dataset + Parent Data Path + Change Path ---
-    top = st.columns([1, 4, 1])
+    # --- Top row: Add dataset + Parent Data Path + Change Path + Scan Path ---
+    top = st.columns([1, 4, 1, 1])
     templates = dmp_default_templates()
 
     # Initialize parent data path in session (for later override)
@@ -69,6 +70,53 @@ def draw_datasets_section(dmp_root: dict) -> None:
         st.session_state["__parent_data_path__"] = str(DATA_PARENT_PATH)
 
     parent_data_path = st.session_state["__parent_data_path__"]
+
+    def _apply_parent_data_path(source_path: str, action_label: str) -> None:
+        resolved_parent = _resolve_browse_start_path(source_path, fallback_root=PROJECT_ROOT)
+        chosen_norm = _normalize_chosen_path(str(resolved_parent))
+
+        # Keep the UI state in sync with the active scan target.
+        st.session_state["__parent_data_path__"] = chosen_norm
+
+        try:
+            # 1) Let the central autosave logic write the DMP to disk
+            _autosave_if_changed(force_write=True)
+
+            # Resolve the path that autosave wrote to
+            save_path_str = st.session_state.get("save_path") or str(DEFAULT_DMP_PATH)
+            save_path = Path(save_path_str).resolve()
+
+            # 2) Persist to TOML
+            write_toml(
+                data={"patterns": [chosen_norm]},
+                folder=str(PROJECT_ROOT),
+                json_filename=JSON_FILENAME,
+                tool_name="datasets",
+                toml_path=TOML_PATH,
+            )
+
+            # 3) Rebuild dataset metadata
+            try:
+                dataset_main(
+                    dmp_path=save_path,
+                    do_print=False,
+                    git_msg=action_label.format(path=chosen_norm),
+                )
+            except Exception as e:
+                st.warning(f"dataset_main failed: {e}")
+
+            # 4) Reload DMP + force widget refresh + reset UI / autosave baseline, then rerun
+            _reload_dmp_from_disk(
+                save_path,
+                clear_widget_keys=True,
+                reset_autosave_baseline=True,
+                force_widget_refresh=True,
+                rerun=True,
+            )
+        except Exception as e:
+            st.error(f"Failed to save parent data path: {e}")
+        else:
+            st.rerun()
 
     with top[0]:
         if st.button("➕ Add dataset", key=_key_for("dataset", "add")):
@@ -116,50 +164,16 @@ def draw_datasets_section(dmp_root: dict) -> None:
             )
 
             if chosen:
-                chosen_norm = _normalize_chosen_path(chosen)
+                _apply_parent_data_path(chosen, "Setting parent dataset path to {path}")
 
-                # 1) Update in-memory parent path used by the UI
-                st.session_state["__parent_data_path__"] = chosen_norm
-
-                try:
-                    # 2) Let the central autosave logic write the DMP to disk
-                    _autosave_if_changed(force_write=True)
-
-                    # Resolve the path that autosave wrote to
-                    save_path_str = st.session_state.get("save_path") or str(DEFAULT_DMP_PATH)
-                    save_path = Path(save_path_str).resolve()
-
-                    # 3) Persist to TOML
-                    write_toml(
-                        data={"patterns": [chosen_norm]},
-                        folder=str(PROJECT_ROOT),
-                        json_filename=JSON_FILENAME,
-                        tool_name="datasets",
-                        toml_path=TOML_PATH,
-                    )
-
-                    # 4) Rebuild dataset metadata
-                    try:
-                        dataset_main(
-                            dmp_path=save_path,
-                            do_print=False,
-                            git_msg=f"Setting parent dataset path to {chosen_norm}",
-                        )
-                    except Exception as e:
-                        st.warning(f"dataset_main failed: {e}")
-
-                    # 5) Reload DMP + force widget refresh + reset UI / autosave baseline, then rerun
-                    _reload_dmp_from_disk(
-                        save_path,
-                        clear_widget_keys=True,
-                        reset_autosave_baseline=True,
-                        force_widget_refresh=True,
-                        rerun=True,
-                    )
-                except Exception as e:
-                    st.error(f"Failed to save parent data path: {e}")
-                else:
-                    st.rerun()
+    with top[3]:
+        if st.button("Scan Path", key="scan_parent_data_path"):
+            _apply_parent_data_path(
+                parent_data_path or st.session_state.get(
+                    "__parent_data_path__", str(DATA_PARENT_PATH)
+                ),
+                "Scanning parent dataset path {path}",
+            )
 
     def _is_unknown(v: Any) -> bool:
         s = str(v or "").strip().lower()

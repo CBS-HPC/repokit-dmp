@@ -22,10 +22,9 @@ from .schema_and_editors import (
     _enum_info_for_path,
     _enum_label_for,
     _is_dataset_path,
-    _is_empty_alias,
     _is_under_dataset_extension,
     _key_for,
-    _normalize_chosen_path,
+    _normalize_chosen_path,  # noqa: F401 - re-export for app_main_cli compatibility
     edit_array,
     edit_primitive,
     _show_readonly_json,
@@ -235,6 +234,33 @@ def draw_projects_section(dmp_root: dict[str, Any]) -> None:
     dmp_root["project"] = projects
 
 
+def _resolve_browse_start_path(
+    start_path: str | Path | None = None,
+    fallback_root: Path | None = None,
+) -> Path:
+    """
+    Resolve the initial chooser location.
+
+    If the requested start path exists, use it.
+    If it does not exist, fall back to the active project root.
+    """
+    root = (fallback_root or PROJECT_ROOT).resolve()
+
+    if start_path:
+        candidate = Path(os.fspath(start_path)).expanduser()
+        if not candidate.is_absolute():
+            candidate = (root / candidate).resolve()
+        else:
+            try:
+                candidate = candidate.resolve()
+            except Exception:
+                pass
+        if candidate.exists():
+            return candidate
+
+    return root if root.exists() else Path.cwd().resolve()
+
+
 def _browse_for_directory(
     start_path: str | Path | None = None,
     title: str = "Select a folder",
@@ -253,11 +279,8 @@ def _browse_for_directory(
         Selected path as a string (directory or file, depending on dir_only),
         or None if cancelled.
     """
-    # Normalise starting path
-    if start_path:
-        start_str = os.fspath(start_path)
-    else:
-        start_str = os.getcwd()
+    start = _resolve_browse_start_path(start_path)
+    start_str = os.fspath(start)
 
     # Compute default directory / file
     if dir_only:
