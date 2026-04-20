@@ -19,7 +19,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="repokit-dmp", description="repokit-dmp commands")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    for name in ["dataset", "dcas-migration", "update", "editor"]:
+    for name in ["dataset", "dcas-migration", "update", "editor", "init"]:
         p = sub.add_parser(name)
         p.add_argument("args", nargs=argparse.REMAINDER)
 
@@ -41,6 +41,10 @@ def main() -> None:
         from . import editor
 
         _dispatch(editor.cli, ns.args, "repokit-dmp editor")
+    elif ns.command == "init":
+        from . import init
+
+        _dispatch(init.main, ns.args, "repokit-dmp init")
 
 
 if __name__ == "__main__":

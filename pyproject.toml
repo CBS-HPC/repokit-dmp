@@ -13,6 +13,8 @@ keywords = ["research", "reproducibility", "automation", "data-management"]
 classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Operating System :: OS Independent",
 ]
@@ -27,7 +29,7 @@ dependencies = [
   "repokit-common",
 ]
 
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 
 [project.urls]
 Homepage = "https://github.com/CBS-HPC/repokit-dmp"
@@ -51,16 +53,17 @@ set-dataset = "repokit_dmp.dataset:main"
 dcas-migration = "repokit_dmp.dcas:main"
 dmp-update = "repokit_dmp.dmp:main"
 dmp-editor = "repokit_dmp.editor:cli"
+dmp-init = "repokit_dmp.init:main"
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py310"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.10"
 ignore_missing_imports = true
 warn_unused_ignores = true
 disallow_untyped_defs = false
@@ -68,3 +71,6 @@ check_untyped_defs = false
 no_implicit_optional = false
 strict_optional = false
 exclude = '(^\.venv/|^build/|^dist/)'
+
+[tool.datasets]
+patterns = "data/*"
