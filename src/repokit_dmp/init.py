@@ -98,7 +98,7 @@ def init_project(force: bool = False) -> dict[str, object]:
 
     created_dmp = False
     if force or not dmp_path.exists():
-        create_or_update_dmp_from_schema(dmp_path=dmp_path)
+        create_or_update_dmp_from_schema(dmp_path=dmp_path, project_root=root_path)
         created_dmp = True
 
     return {

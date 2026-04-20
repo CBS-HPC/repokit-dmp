@@ -13,7 +13,11 @@ def test_init_project_creates_pyproject_and_dmp(tmp_path, monkeypatch):
 
     calls: list[Path] = []
 
-    def fake_create_or_update_dmp_from_schema(dmp_path: Path = Path("dmp.json")) -> Path:
+    def fake_create_or_update_dmp_from_schema(
+        dmp_path: Path = Path("dmp.json"),
+        project_root: Path | None = None,
+    ) -> Path:
+        assert project_root == tmp_path
         calls.append(dmp_path)
         dmp_path.write_text(json.dumps({"dmp": {"created": True}}), encoding="utf-8")
         return dmp_path
@@ -89,7 +93,11 @@ def test_init_project_force_rebuilds_dmp(tmp_path, monkeypatch):
     dmp_path = tmp_path / "dmp.json"
     dmp_path.write_text(json.dumps({"dmp": {"existing": True}}), encoding="utf-8")
 
-    def fake_create_or_update_dmp_from_schema(dmp_path: Path = Path("dmp.json")) -> Path:
+    def fake_create_or_update_dmp_from_schema(
+        dmp_path: Path = Path("dmp.json"),
+        project_root: Path | None = None,
+    ) -> Path:
+        assert project_root == tmp_path
         dmp_path.write_text(json.dumps({"dmp": {"forced": True}}), encoding="utf-8")
         return dmp_path
 

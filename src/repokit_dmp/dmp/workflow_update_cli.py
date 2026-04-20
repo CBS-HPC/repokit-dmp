@@ -23,6 +23,7 @@ from .schema_io import (
     HOST_KEY_ORDER,
     LICENSE_ITEM_KEY_ORDER,
     METADATA_ITEM_KEY_ORDER,
+    PROJECT_ROOT,
     SCHEMA_URLS,
     SCHEMA_VERSION,
     SEC_PRIV_ITEM_KEY_ORDER,
@@ -479,7 +480,10 @@ def reorder_dmp_keys(data: dict[str, Any]) -> dict[str, Any]:
     return {"dmp": ordered_root}
 
 
-def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
+def create_or_update_dmp_from_schema(
+    dmp_path: Path = DEFAULT_DMP_PATH,
+    project_root: Path | None = None,
+) -> Path:
     """
     - If DMP doesn't exist: create a fresh DMP scaffold.
     - If it exists: load it, normalize root & project & datasets (preserving values).
@@ -490,12 +494,12 @@ def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
     - Ensure the top-level 'dmp' object is saved in the exact key order you specified.
     """
     schema = fetch_schema()
+    project_root = project_root or PROJECT_ROOT
 
     if not dmp_path.exists():
-        schema = fetch_schema()
         # Fresh shape
         shaped = ensure_dmp_shape({})
-        _apply_cookiecutter_meta(project_root=PROJECT_ROOT, data=shaped, overwrite=True)
+        _apply_cookiecutter_meta(project_root=project_root, data=shaped, overwrite=True)
         normalize_root_in_place(shaped, schema=schema)
         normalize_datasets_in_place(shaped, schema=schema)
 
@@ -516,7 +520,7 @@ def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
     data = ensure_dmp_shape(data)
     normalize_root_in_place(data, schema=schema)
     normalize_datasets_in_place(data, schema=schema)
-    _apply_cookiecutter_meta(project_root=PROJECT_ROOT, data=data, overwrite=False)
+    _apply_cookiecutter_meta(project_root=project_root, data=data, overwrite=False)
 
     data["dmp"]["schema"] = SCHEMA_URLS[SCHEMA_VERSION]  # enforce requested value
     data["dmp"]["modified"] = now_iso_minute()  # ensure date-time with Z
@@ -537,7 +541,7 @@ def create_or_update_dmp_from_schema(dmp_path: Path = DEFAULT_DMP_PATH) -> Path:
 def main() -> None:
     global PROJECT_ROOT
     PROJECT_ROOT = bootstrap_runtime_root()
-    create_or_update_dmp_from_schema(dmp_path=DEFAULT_DMP_PATH)
+    create_or_update_dmp_from_schema(dmp_path=DEFAULT_DMP_PATH, project_root=PROJECT_ROOT)
 
 
 if __name__ == "__main__":
