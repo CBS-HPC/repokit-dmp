@@ -19,7 +19,7 @@ from .schema_io import (
     load_json,
     read_toml,
 )
-import urllib
+import urllib.request
 from copy import deepcopy
 from repokit_common import toml_dataset_path, write_toml
 def _apply_cookiecutter_meta(
