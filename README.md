@@ -27,6 +27,7 @@ Wheel filenames include version tags and may change over time.
 | Command | Description |
 |---------|-------------|
 | `repokit-dmp dataset` | Initialize/update dataset metadata and structure links. |
+| `repokit-dmp init` | Bootstrap project scaffolding (`pyproject.toml`, `dmp.json`) without overwriting existing state unless `--force`. |
 | `repokit-dmp update` | Create/update `dmp.json` from project metadata. |
 | `repokit-dmp editor` | Launch Streamlit editor for DMP + publishing helpers. |
 | `repokit-dmp dcas-migration` | Run DCAS migration/validation workflow. |
@@ -72,6 +73,32 @@ Standalone note:
 
 > Dataset metadata is stored in `dmp.json` using a normalized schema.
 > Dataset remapping/discovery logic is implemented in the `repokit_dmp.dataset` module.
+
+---
+
+### `repokit-dmp init`
+
+First-run bootstrap for a project root. This command ensures the local DMP scaffolding exists and is safe to rerun.
+
+#### What it does
+
+- Creates `pyproject.toml` if it is missing
+- Ensures `[tool.datasets]` exists with a default scan pattern
+- Ensures `[tool.data_policy]` exists with a default description and empty patterns list
+- Creates `dmp.json` if it is missing
+- Rebuilds `dmp.json` when `--force` is provided
+
+#### Usage
+
+```bash
+repokit-dmp init
+repokit-dmp init --force
+```
+
+#### Notes
+
+- `init` is the bootstrap command; `update` remains the schema-normalization command for an existing `dmp.json`
+- Existing `pyproject.toml` values are preserved when present
 
 ---
 

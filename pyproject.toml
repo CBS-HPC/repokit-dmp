@@ -53,6 +53,7 @@ set-dataset = "repokit_dmp.dataset:main"
 dcas-migration = "repokit_dmp.dcas:main"
 dmp-update = "repokit_dmp.dmp:main"
 dmp-editor = "repokit_dmp.editor:cli"
+dmp-init = "repokit_dmp.init:main"
 
 [tool.ruff]
 line-length = 100
