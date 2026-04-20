@@ -8,7 +8,7 @@ from pathlib import Path
 import streamlit as st
 from streamlit.web.cli import main as st_main
 
-from .bootstrap_and_policies import (
+from repokit_dmp.editor.bootstrap_and_policies import (
     DATA_PARENT_PATH,
     DEFAULT_DMP_PATH,
     JSON_FILENAME,
@@ -26,15 +26,18 @@ from .bootstrap_and_policies import (
     update_cookiecutter_from_dmp,
     write_toml,
 )
-from .schema_and_editors import _inject_dist_css_once, safe_fetch_schema
-from .sections_datasets import (
+from repokit_dmp.editor.schema_and_editors import (
+    _inject_dist_css_once,
+    safe_fetch_schema,
+)
+from repokit_dmp.editor.sections_datasets import (
     _autosave_if_changed,
     _ensure_data_initialized,
     _schema_fixups_in_place,
     render_token_controls,
 )
-from .sections_root_projects import draw_datasets_section
-from .widget_helpers import (
+from repokit_dmp.editor.sections_root_projects import draw_datasets_section
+from repokit_dmp.editor.widget_helpers import (
     _browse_for_directory,
     _normalize_chosen_path,
     draw_projects_section,
