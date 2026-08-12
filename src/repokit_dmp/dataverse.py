@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import tempfile
 import time
 import zipfile
@@ -27,7 +26,7 @@ from random import random
 from typing import Any
 from threading import Thread
 import requests
-import streamlit as st  # type: ignore
+import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -40,13 +39,11 @@ from .publish import (
     RETRY_STATUS,
     PackItem,
     PublishError,
-    _affiliation_from_node,
     # ── functions ────────────────────────────────────────────
     _get,
     _guess_dataset,
     _has_personal_or_sensitive,
     _norm_list,
-    _normalize_orcid,  # note: we redefine a local helper below (kept for compatibility)
     append_packaging_note,
     description_from_madmp,
     estimate_zip_total_bytes,
@@ -153,13 +150,13 @@ def _dv_upload_file_session(
 ) -> str:
     """Single file upload using an existing Session (keep-alive). Returns basename on success."""
     url = f"{base_url.rstrip('/')}/api/datasets/{dataset_id}/add"
-    json_data = {"description": description or ""}
+    json_data: dict[str, Any] = {"description": description or ""}
     if directory_label:
         json_data["directoryLabel"] = directory_label
     if restrict:
         json_data["restrict"] = True
 
-    data = {"jsonData": json.dumps(json_data)}
+    data: dict[str, Any] = {"jsonData": json.dumps(json_data)}
     with open(filepath, "rb") as fh:
         files = {"file": (os.path.basename(filepath), fh)}
         r = session.post(url, files=files, data=data, timeout=timeout)
@@ -936,7 +933,8 @@ def streamlit_publish_to_dataverse(
     repokit_info_files = files_from_repokit_info(ds_preview)
     dmp_dir = str(Path(dmp_path).resolve().parent)
     resolved_preview = [
-        p if os.path.isabs(p) else os.path.normpath(os.path.join(dmp_dir, p)) for p in repokit_info_files
+        p if os.path.isabs(p) else os.path.normpath(os.path.join(dmp_dir, p))
+        for p in repokit_info_files
     ]
     uploads_raw_preview = (
         [] if sensitive_preview else [p for p in resolved_preview if os.path.exists(p)]
@@ -1027,3 +1025,4 @@ def streamlit_publish_to_dataverse(
         ),
         daemon=True,
     ).start()
+    return {"id": ds_id, "persistent_id": pid, "url": html_url}

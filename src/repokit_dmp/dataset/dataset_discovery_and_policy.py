@@ -1,33 +1,39 @@
-from .metadata_and_paths import (
-    Any,
+import os
+import pathlib
+from collections.abc import Iterable
+from copy import deepcopy
+from datetime import datetime
+from typing import Any
+
+from repokit_common import check_path_format
+
+from ..dmp import (
     DEFAULT_DMP_PATH,
+    LICENSE_LINKS,
+    data_type_from_path,
+    dmp_default_templates,
+    now_iso_minute,
+    save_json,
+    set_repokit_info_payload,
+    to_bytes_mb,
+)
+from .metadata_and_paths import (
     DEFAULT_UPDATE_DIST_FIELDS,
     DEFAULT_UPDATE_FIELDS,
     IGNORE_DICT,
-    Iterable,
-    LICENSE_LINKS,
     PROJECT_ROOT,
     _is_restricted_dataset_path,
     _pseudonymize_data_files,
-    check_path_format,
-    data_type_from_path,
-    datetime,
-    deepcopy,
-    dmp_default_templates,
     get_all_files,
     get_file_info,
     get_hash,
     get_repokit_info_payload,
     load_json,
     norm_rel_urlish,
-    now_iso_minute,
-    os,
-    pathlib,
     read_toml,
-    save_json,
-    set_repokit_info_payload,
-    to_bytes_mb,
 )
+
+
 def datasets_to_json(
     json_path=DEFAULT_DMP_PATH,
     entry=None,
@@ -266,7 +272,11 @@ def remove_missing_datasets(json_path: str | os.PathLike = DEFAULT_DMP_PATH):
                 new_exts.append(ext)
                 continue
             # Drop any prior repokit_info in any known shape
-            if "repokit_info" in ext or ext.get("name") == "repokit_info" or ext.get("extension") == "repokit_info":
+            if (
+                "repokit_info" in ext
+                or ext.get("name") == "repokit_info"
+                or ext.get("extension") == "repokit_info"
+            ):
                 continue
             new_exts.append(ext)
 

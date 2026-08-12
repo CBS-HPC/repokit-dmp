@@ -11,8 +11,6 @@ import streamlit as st
 from streamlit.web.cli import main as st_main
 
 from repokit_dmp.editor.bootstrap_and_policies import (
-    DATA_PARENT_PATH,
-    DEFAULT_DMP_PATH,
     JSON_FILENAME,
     PROJECT_ROOT,
     SCHEMA_VERSION,
@@ -46,6 +44,7 @@ from repokit_dmp.editor.widget_helpers import (
     draw_root_section,
     find_default_dmp_path,
 )
+
 
 def _bootstrap_dmp_from_selected_parent(default_path: Path) -> bool:
     """
@@ -171,17 +170,17 @@ def _resolve_data_parent_path() -> Path:
 
 
 def main() -> None:
-    global PROJECT_ROOT, DATA_PARENT_PATH
+    global PROJECT_ROOT
     PROJECT_ROOT = bootstrap_runtime_root()
     _ensure_data_policy_config()
     default_path = find_default_dmp_path()
     _bootstrap_dmp_from_selected_parent(default_path)
-    DATA_PARENT_PATH = _resolve_data_parent_path()
+    data_parent_path = _resolve_data_parent_path()
     import repokit_dmp.editor.bootstrap_and_policies as _bootstrap_and_policies
     import repokit_dmp.editor.sections_root_projects as _sections_root_projects
 
-    _bootstrap_and_policies.DATA_PARENT_PATH = DATA_PARENT_PATH
-    _sections_root_projects.DATA_PARENT_PATH = DATA_PARENT_PATH
+    _bootstrap_and_policies.DATA_PARENT_PATH = data_parent_path
+    _sections_root_projects.DATA_PARENT_PATH = data_parent_path
 
     st.set_page_config(page_title=f"RDA-DMP {SCHEMA_VERSION} JSON Editor", layout="wide")
     st.title(f"RDA-DMP {SCHEMA_VERSION} JSON Editor")
@@ -339,11 +338,7 @@ def cli() -> None:
     ssh_mode = len(sys.argv) > 1 and sys.argv[1] == "ssh"
     if ssh_mode:
         sys.argv.pop(1)
-        default_app_port = (
-            load_from_env("APP_PORT")
-            or os.environ.get("APP_PORT")
-            or "8501"
-        )
+        default_app_port = load_from_env("APP_PORT") or os.environ.get("APP_PORT") or "8501"
         app_port_prompt = f"App port [{default_app_port}]: "
         entered_app_port = input(app_port_prompt).strip()
         app_port_str = entered_app_port or str(default_app_port)

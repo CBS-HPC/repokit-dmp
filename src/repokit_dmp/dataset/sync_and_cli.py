@@ -1,22 +1,30 @@
-from .dataset_discovery_and_policy import (
-    DEFAULT_DMP_PATH,
-    IGNORE_DICT,
-    _is_restricted_dataset_path,
-    data_type_from_path,
-    dataset,
-    get_repokit_info_payload,
-    os,
-    pathlib,
-    read_toml,
-    remove_missing_datasets,
-)
 import json
+import os
+import pathlib
 from collections import defaultdict
 
-from repokit_common import change_dir, ensure_correct_kernel, toml_dataset_path
+from repokit_common import (
+    PROJECT_ROOT,
+    change_dir,
+    ensure_correct_kernel,
+    read_toml,
+    toml_dataset_path,
+)
 
 from .. import bootstrap_runtime_root
-from ..dmp import create_or_update_dmp_from_schema, ensure_dmp_shape
+from ..dmp import (
+    DEFAULT_DMP_PATH,
+    create_or_update_dmp_from_schema,
+    data_type_from_path,
+    ensure_dmp_shape,
+)
+from .dataset_discovery_and_policy import (
+    IGNORE_DICT,
+    _is_restricted_dataset_path,
+    dataset,
+    get_repokit_info_payload,
+    remove_missing_datasets,
+)
 from .metadata_and_paths import (
     _sync_sensitive_policy_artifacts_from_dmp,
     datalad_cleaning,
@@ -27,8 +35,10 @@ from .metadata_and_paths import (
     set_datalad,
     set_dvc,
 )
+
+
 def generate_dataset_table(
-    json_path: str,
+    json_path: str | pathlib.Path,
     file_descriptions: dict[str, str] | None = None,
     include_hash: bool = False,
 ) -> tuple[str | None, str | None]:
@@ -107,8 +117,10 @@ def generate_dataset_table(
 
         # --- Dynamic identifier field ---
         ds_id = ds.get("dataset_id") or {}
-        if isinstance(ds_id, list) and ds_id:
-            ds_id = ds_id[0]
+        if isinstance(ds_id, list):
+            ds_id = ds_id[0] if ds_id else {}
+        if not isinstance(ds_id, dict):
+            ds_id = {}
 
         # Coerce empty/whitespace strings to None
         raw_identifier = ds_id.get("identifier")
@@ -273,11 +285,12 @@ def dataset_to_readme(markdown_table: str, readme_file: str = "./README.md", do_
 
 
 def dataset_path_update(
-    data_files: list[str] | None = None,
-    dmp_path: str = DEFAULT_DMP_PATH,
+    data_files: str | list[str] | None = None,
+    dmp_path: str | pathlib.Path = DEFAULT_DMP_PATH,
     git_msg: str = None,
-    default_dataset_path:dict=None,
+    default_dataset_path: dict = None,
 ):
+    dmp_path = str(dmp_path)
     if isinstance(data_files, str):
         data_files = [data_files]
 
@@ -292,10 +305,10 @@ def dataset_path_update(
         default_dataset_path, _ = toml_dataset_path()
 
     file_descriptions = read_toml(
-        folder = PROJECT_ROOT,
-        json_filename = "./file_descriptions.json",
-        tool_name = "file_descriptions",
-        toml_path = "pyproject.toml",
+        folder=PROJECT_ROOT,
+        json_filename="./file_descriptions.json",
+        tool_name="file_descriptions",
+        toml_path="pyproject.toml",
     )
 
     change_flag = False
@@ -339,10 +352,10 @@ def dataset_path_update(
 
 @ensure_correct_kernel
 def main(
-    dmp_path: str = DEFAULT_DMP_PATH,
+    dmp_path: str | pathlib.Path = DEFAULT_DMP_PATH,
     do_print: bool = True,
     git_msg: str = "Running 'set-dataset'",
-    default_dataset_path:dict=None,
+    default_dataset_path: dict = None,
 ):
     global PROJECT_ROOT
     PROJECT_ROOT = bootstrap_runtime_root()

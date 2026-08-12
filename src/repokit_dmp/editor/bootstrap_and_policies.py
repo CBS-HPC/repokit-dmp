@@ -7,26 +7,16 @@ Streamlit RDA-DMP JSON editor with per-dataset publish buttons:
 Now with autosave: changes are saved to disk automatically whenever fields change.
 """
 
-import hashlib
-import json
 import os
 import re
-import socket
 import subprocess
-import sys
-from copy import deepcopy
-from datetime import date, datetime
-from hashlib import sha256  # <- for autosave hashing
 from pathlib import Path
 from typing import Any
+
 try:
     import wx
 except Exception:
     wx = None
-
-import requests
-import streamlit as st
-from streamlit.web.cli import main as st_main
 
 
 def _find_setup_root() -> Path | None:
@@ -122,6 +112,49 @@ except ImportError:
 
     # from repokit_dmp.publish import *
     from repokit_dmp.zenodo import streamlit_publish_to_zenodo
+
+
+# This is the explicit dependency surface shared by the split editor modules.
+__all__ = [
+    "DATA_PARENT_PATH",
+    "DATAVERSE_SITE_CHOICES",
+    "DEFAULT_DMP_PATH",
+    "DK_UNI_MAP",
+    "EXTRA_ENUMS",
+    "JSON_FILENAME",
+    "LICENSE_LINKS",
+    "PROJECT_ROOT",
+    "PublishError",
+    "SCHEMA_URLS",
+    "SCHEMA_VERSION",
+    "TOML_PATH",
+    "TOOL_NAME",
+    "ZENODO_API_CHOICES",
+    "bootstrap_runtime_root",
+    "dataset_main",
+    "dataset_path_update",
+    "dmp_default_templates",
+    "ensure_dmp_shape",
+    "ensure_required_by_schema",
+    "fetch_schema",
+    "get_repokit_info_payload",
+    "load_from_env",
+    "normalize_datasets_in_place",
+    "normalize_root_in_place",
+    "now_iso_minute",
+    "read_toml",
+    "reorder_dmp_keys",
+    "repair_empty_enums",
+    "save_to_env",
+    "set_repokit_info_payload",
+    "streamlit_publish_to_dataverse",
+    "streamlit_publish_to_zenodo",
+    "today_iso",
+    "toml_dataset_path",
+    "update_cookiecutter_from_dmp",
+    "write_toml",
+    "wx",
+]
 
 DATA_PARENT_PATH = Path(".")
 # ---------------------------
@@ -228,7 +261,7 @@ def _refresh_unblurred_data_files_for_non_sensitive(ds: dict) -> bool:
     if not base.exists():
         return False
 
-    real_files: list[str] = []
+    real_files: list[Path] = []
     if base.is_file():
         real_files = [base]
     else:
@@ -500,4 +533,3 @@ def _sync_sensitive_policy_artifacts(datasets: list[dict[str, Any]]) -> bool:
     changed |= _regenerate_data_gitlog_if_present()
 
     return changed
-

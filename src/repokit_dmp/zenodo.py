@@ -12,7 +12,9 @@ from threading import Thread
 from typing import Any
 
 import requests
-import streamlit as st  # type: ignore
+import streamlit as st
+
+from repokit_common import load_from_env
 
 from .publish import (
     DEFAULT_TIMEOUT,
@@ -54,6 +56,7 @@ def _resolve_zenodo_base_url(base_url: str | None) -> str:
     """
     if base_url and base_url.strip():
         return base_url.rstrip("/")
+    return (load_from_env("ZENODO_API_BASE") or "https://sandbox.zenodo.org/api").rstrip("/")
 
 
 def _zenodo_headers(token: str) -> dict:
@@ -99,8 +102,8 @@ def _upload_one(token: str, bucket_url: str, filepath: str):
 
 
 def _upload_many_parallel(token: str, bucket_url: str, paths: list[str]) -> list[str]:
-    uploaded = []
-    errors = []
+    uploaded: list[str] = []
+    errors: list[tuple[str, Exception]] = []
     if not paths:
         return uploaded
     with ThreadPoolExecutor(max_workers=UPLOAD_WORKERS) as ex:
@@ -598,6 +601,4 @@ def streamlit_publish_to_zenodo(
                 pass
 
     Thread(target=_worker_upload_then_publish, daemon=True).start()
-    # (keep existing return behavior if any)
-
-
+    return {"id": deposition_id, "url": html_url}

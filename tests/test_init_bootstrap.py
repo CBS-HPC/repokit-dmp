@@ -61,7 +61,7 @@ def test_init_project_preserves_existing_dmp_without_force(tmp_path, monkeypatch
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        "[tool.datasets]\npatterns = [\"existing/data/*\"]\n",
+        '[tool.datasets]\npatterns = ["existing/data/*"]\n',
         encoding="utf-8",
     )
     dmp_path = tmp_path / "dmp.json"

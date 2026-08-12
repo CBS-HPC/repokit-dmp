@@ -183,9 +183,8 @@ def draw_datasets_section(dmp_root: dict) -> None:
     with top[3]:
         if st.button("Scan Path", key="scan_parent_data_path"):
             _apply_parent_data_path(
-                parent_data_path or st.session_state.get(
-                    "__parent_data_path__", str(DATA_PARENT_PATH)
-                ),
+                parent_data_path
+                or st.session_state.get("__parent_data_path__", str(DATA_PARENT_PATH)),
                 "Scanning parent dataset path {path}",
             )
 
@@ -473,7 +472,7 @@ TOKENS_STATE = {
 def _get_env_or_secret(key: str, default: str = "") -> str:
     val = ""
     try:
-        val = st.secrets[key]  # type: ignore[index]
+        val = st.secrets[key]
     except Exception:
         val = ""
     if not val:

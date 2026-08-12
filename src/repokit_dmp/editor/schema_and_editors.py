@@ -132,7 +132,6 @@ def _is_dataset_path(path: tuple) -> bool:
 
 def _edit_distribution_inline(arr: list[Any], path: tuple, ns: str | None = None) -> list[Any]:
     # Local import avoids a module-level cycle with widget_helpers.
-    from .widget_helpers import edit_any
 
     if not isinstance(arr, list):
         return arr
@@ -317,7 +316,7 @@ def _enum_info_for_path(path: tuple):
                 base_options = list(it["enum"])
     sig = _path_signature(path)
     try:
-        extras = EXTRA_ENUMS.get(sig, [])  # type: ignore[name-defined]
+        extras = EXTRA_ENUMS.get(sig, [])
     except Exception:
         extras = []
     extra_values: list[str] = []
@@ -342,7 +341,7 @@ def _enum_info_for_path(path: tuple):
 def _enum_label_for(path: tuple, option_value: str) -> str:
     sig = _path_signature(path)
     try:
-        extras = EXTRA_ENUMS.get(sig, [])  # type: ignore[name-defined]
+        extras = EXTRA_ENUMS.get(sig, [])
     except Exception:
         extras = []
     if isinstance(extras, list):

@@ -30,6 +30,7 @@ from .schema_and_editors import (
     _show_readonly_json,
 )
 
+
 def edit_object(
     obj: dict[str, Any], path: tuple, allow_remove_keys: bool, ns: str | None = None
 ) -> dict[str, Any]:

@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,8 @@ def today_iso() -> str:
     return datetime.utcnow().date().isoformat()
 
 
-def load_json(path: Path) -> dict[str, Any]:
+def load_json(path: Path | str | os.PathLike[str]) -> dict[str, Any]:
+    path = Path(path)
     if not path.exists():
         return {}
     if path.stat().st_size == 0:
@@ -32,7 +34,9 @@ def load_json(path: Path) -> dict[str, Any]:
         except json.JSONDecodeError:
             return {}
 
-def save_json(path: Path, data: dict[str, Any]) -> None:
+
+def save_json(path: Path | str | os.PathLike[str], data: dict[str, Any]) -> None:
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
@@ -481,16 +485,16 @@ def _set_contacts(dmp: dict, cookie: dict, overwrite: bool = False):
         if not (name or mbox or orcid):
             continue
 
-        info: dict[str, Any] = {}
+        contributor_info: dict[str, Any] = {}
         if name:
-            info["name"] = name
+            contributor_info["name"] = name
         if mbox:
-            info["mbox"] = mbox
-            info["affiliation"] = _affiliation_from_email(mbox)
+            contributor_info["mbox"] = mbox
+            contributor_info["affiliation"] = _affiliation_from_email(mbox)
         if orcid:
-            info["contributor_id"] = {"type": "orcid", "identifier": orcid}
+            contributor_info["contributor_id"] = {"type": "orcid", "identifier": orcid}
 
-        contributors.append(info)
+        contributors.append(contributor_info)
 
     if overwrite or (contributors and not dmp.get("contributor")):
         if not contributors:
@@ -499,4 +503,3 @@ def _set_contacts(dmp: dict, cookie: dict, overwrite: bool = False):
             dmp["contributor"] = contributors  # list of dicts
 
     return dmp
-

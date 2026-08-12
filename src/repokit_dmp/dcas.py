@@ -4,7 +4,7 @@ import shutil
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import requests
 
@@ -72,9 +72,9 @@ def migrate_datasets(
     def _zip_dir(src_dir: Path, out_zip_path: Path) -> Path:
         """Zip a directory (deflated). Returns the zip path."""
         out_zip_path.parent.mkdir(parents=True, exist_ok=True)
-        mode = "w" if overwrite else ("x" if not out_zip_path.exists() else None)
-        if mode is None:
+        if not overwrite and out_zip_path.exists():
             return out_zip_path  # respect overwrite=False and existing zip
+        mode: Literal["w", "x"] = "w" if overwrite else "x"
         with zipfile.ZipFile(out_zip_path, mode, compression=zipfile.ZIP_DEFLATED) as zf:
             for root_dir, _, files in os.walk(src_dir):
                 root_path = Path(root_dir)
@@ -450,7 +450,7 @@ def main():
 
     items, _ = get_data_files()  # second value is the mixed list of dirs/files
 
-    copy_data_items(items = items, dest_base = "./DCAS template/data", overwrite=True)
+    copy_data_items(items=items, dest_base="./DCAS template/data", overwrite=True)
 
     # FIXME Add items to copy to pyproject.toml instead of hardcoding here
 

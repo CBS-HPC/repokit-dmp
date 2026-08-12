@@ -31,6 +31,8 @@ from .schema_io import (
     save_json,
 )
 from .. import bootstrap_runtime_root
+
+
 def _enum_default(prop_name: str | None, options: list[Any]) -> Any:
     """
     Choose a default for enum fields using project rules:
@@ -481,7 +483,7 @@ def reorder_dmp_keys(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def create_or_update_dmp_from_schema(
-    dmp_path: Path = DEFAULT_DMP_PATH,
+    dmp_path: Path | str = DEFAULT_DMP_PATH,
     project_root: Path | None = None,
 ) -> Path:
     """
@@ -493,6 +495,7 @@ def create_or_update_dmp_from_schema(
     - Pull metadata from cookiecutter (title, description, contact, project).
     - Ensure the top-level 'dmp' object is saved in the exact key order you specified.
     """
+    dmp_path = Path(dmp_path)
     schema = fetch_schema()
     project_root = project_root or PROJECT_ROOT
 

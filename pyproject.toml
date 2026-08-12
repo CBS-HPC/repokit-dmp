@@ -42,6 +42,7 @@ dev = [
   "pytest",
   "ruff>=0.6",
   "mypy>=1.10",
+  "types-requests",
   "uv",
 ]
 editor = [
@@ -58,6 +59,10 @@ dmp-init = "repokit_dmp.init:main"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+# Keep CI stable across Ruff releases and enforce the project's baseline checks.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -22,6 +22,8 @@ from .schema_io import (
 import urllib.request
 from copy import deepcopy
 from repokit_common import toml_dataset_path, write_toml
+
+
 def _apply_cookiecutter_meta(
     project_root: Path, data: dict[str, Any], overwrite: bool = False
 ) -> None:
@@ -228,6 +230,7 @@ def update_cookiecutter_from_dmp(
         tool_name=TOOL_NAME,
         toml_path=TOML_PATH,
     )
+    return PROJECT_ROOT / TOML_PATH
 
 
 def now_iso_minute() -> str:
@@ -273,6 +276,8 @@ def validate_against_schema(
         print("⚠️ Schema validation issues (new file, after schema-driven auto-fix):")
         for e in errs[:50]:
             print(" -", e)
+
+    return errs
 
 
 def _resolve_ref(schema: dict[str, Any], ref: str) -> dict[str, Any]:

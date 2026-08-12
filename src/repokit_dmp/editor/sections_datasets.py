@@ -24,12 +24,12 @@ from .bootstrap_and_policies import (
 )
 from .schema_and_editors import safe_fetch_schema
 from .sections_root_projects import (
-    DK_UNI_MAP,
     TOKENS_STATE,
     _get_env_or_secret,
     _guess_dataverse_defaults_from_university,
     _safe_get_json,
 )
+
 
 def test_zenodo_connection(
     api_base: str, token: str, community: str | None = None
@@ -317,7 +317,7 @@ def render_token_controls():
                     if guess_alias_for_ui:
                         st.session_state["__dv_alias_input__"] = guess_alias_for_ui
 
-            dv_alias = st.text_input(
+            st.text_input(
                 "Collection (alias)",
                 value=st.session_state.get(
                     "__dv_alias_input__",
@@ -387,7 +387,7 @@ def get_token_from_state(service: str) -> str:
     if val:
         return val
     try:
-        val = st.secrets[env_key]  # type: ignore[index]
+        val = st.secrets[env_key]
         if val:
             return val
     except Exception:

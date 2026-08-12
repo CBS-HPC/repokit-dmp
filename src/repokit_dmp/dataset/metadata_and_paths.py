@@ -1,14 +1,9 @@
 import hashlib
-import json
 import os
 import pathlib
 import re
 import subprocess
-from collections import defaultdict
 from collections.abc import Iterable
-from copy import deepcopy
-from datetime import datetime
-from typing import Any
 
 from dirhash import dirhash as _dirhash
 
@@ -16,29 +11,16 @@ from repokit_common import (
     JSON_FILENAME,
     PROJECT_ROOT,
     TOML_PATH,
-    change_dir,
-    check_path_format,
-    ensure_correct_kernel,
     read_toml,
     toml_dataset_path,
     write_toml,
 )
 
-from .. import bootstrap_runtime_root
 from ..dmp import (
-    DEFAULT_DMP_PATH,
-    LICENSE_LINKS,
-    create_or_update_dmp_from_schema,
-    data_type_from_path,
-    dmp_default_templates,
     ensure_dmp_shape,
     get_repokit_info_payload,
-    set_repokit_info_payload,
     load_json,
     norm_rel_urlish,
-    now_iso_minute,
-    save_json,
-    to_bytes_mb,
 )
 
 try:
@@ -59,7 +41,7 @@ except Exception:
     dvc_cleaning = None
 
 
-DEFAULT_UPDATE_FIELDS = []  # top-level fields
+DEFAULT_UPDATE_FIELDS: list[str] = []  # top-level fields
 
 
 DEFAULT_UPDATE_DIST_FIELDS = ["format", "byte_size"]  # nested fields to update
@@ -337,7 +319,7 @@ def _regenerate_data_gitlog_if_present() -> bool:
         return False
 
 
-def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
+def _sync_sensitive_policy_artifacts_from_dmp(json_path: str | os.PathLike[str]) -> bool:
     data = load_json(json_path)
     dmp = ensure_dmp_shape(data).get("dmp", {})
     datasets = dmp.get("dataset", []) or []
@@ -413,4 +395,3 @@ def _sync_sensitive_policy_artifacts_from_dmp(json_path: str) -> bool:
 
     changed |= _regenerate_data_gitlog_if_present()
     return changed
-

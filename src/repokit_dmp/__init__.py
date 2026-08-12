@@ -44,7 +44,9 @@ def ensure_project_root(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return root_path
 
 
-def bootstrap_runtime_root(root: str | pathlib.Path | None = None, chdir: bool = True) -> pathlib.Path:
+def bootstrap_runtime_root(
+    root: str | pathlib.Path | None = None, chdir: bool = True
+) -> pathlib.Path:
     """
     Resolve and apply runtime project root consistently for CLI entrypoints.
     """
