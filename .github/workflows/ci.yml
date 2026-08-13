@@ -12,18 +12,17 @@ jobs:
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: CBS-HPC/repokit-common
-          path: repokit-common
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -U pip
-      - run: pip install -e ./repokit-common
+      - name: Install the released common dependency
+        run: >
+          pip install
+          https://github.com/CBS-HPC/repokit-common/releases/download/v1.0.0/repokit_common-1.0.0-py3-none-any.whl
       - run: pip install -e . --no-deps
-      - run: pip install requests PyYAML nbformat jsonschema dirhash streamlit pytest "ruff>=0.6" "mypy>=1.10" types-requests uv
+      - run: pip install requests PyYAML nbformat jsonschema dirhash streamlit "pytest>=8" "pytest-cov>=5" "ruff>=0.6" "mypy>=1.10" types-requests uv
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
-      - run: pytest
+      - run: pytest --cov=repokit_dmp --cov-report=term-missing

@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "repokit-dmp"
-version = "0.1"
+version = "1.0.0"
 description = "Data management plan tools for Repokit"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "CBS-HPC"}]
 keywords = ["research", "reproducibility", "automation", "data-management"]
 classifiers = [
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -26,7 +26,7 @@ dependencies = [
   "jsonschema",
   "dirhash",
   "streamlit",
-  "repokit-common",
+  "repokit-common>=1,<2",
 ]
 
 requires-python = ">=3.10"
@@ -39,11 +39,14 @@ Issues = "https://github.com/CBS-HPC/repokit-dmp/issues"
 
 [project.optional-dependencies]
 dev = [
-  "pytest",
+  "pytest>=8",
+  "pytest-cov>=5",
   "ruff>=0.6",
   "mypy>=1.10",
   "types-requests",
   "uv",
+  "build>=1.2",
+  "twine>=6",
 ]
 editor = [
   "wxPython>=4.2; platform_system == 'Windows' or platform_system == 'Darwin'",
@@ -82,6 +85,13 @@ exclude = '(^\.venv/|^build/|^dist/)'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["repokit_dmp"]
+
+[tool.coverage.report]
+show_missing = true
 
 [tool.datasets]
 patterns = "data/*"

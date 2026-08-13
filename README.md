@@ -7,20 +7,17 @@ Data Management Plan (DMP) tooling for the Research Template. Works standalone o
 
 ## Installation
 
-`repokit-dmp` is not published on PyPI yet. Use local wheel/source installation.
-
-Install from local wheel files (`/dist`):
+`repokit-dmp` is distributed through GitHub Releases. Install the matching released `repokit-common` wheel first, then the dmp wheel:
 
 ```bash
-# 1) Install dependency wheel first
-pip install https://github.com/CBS-HPC/repokit-common/raw/main/dist/repokit_common-0.1-py3-none-any.whl
+# 1) Install the shared dependency
+pip install https://github.com/CBS-HPC/repokit-common/releases/download/v1.0.0/repokit_common-1.0.0-py3-none-any.whl
 
-# 2) Install repokit-dmp wheel
-pip install https://github.com/CBS-HPC/repokit-dmp/raw/main/dist/repokit_dmp-0.1-py3-none-any.whl
+# 2) Install repokit-dmp
+pip install https://github.com/CBS-HPC/repokit-dmp/releases/download/v1.0.0/repokit_dmp-1.0.0-py3-none-any.whl
 ```
 
-If you are installing into a fresh virtual environment, install in this order so `repokit-common` is available before `repokit-dmp`.
-Wheel filenames include version tags and may change over time.
+If you are installing into a fresh virtual environment, install in this order so `repokit-common` is available before `repokit-dmp`. Verify downloaded assets against the `SHA256SUMS` file attached to the release.
 
 ## CLI
 
